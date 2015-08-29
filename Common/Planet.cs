@@ -12,10 +12,6 @@ namespace ProceduralCities
 			public int Biome;
 			public double TerrainHeight;
 
-			// Dijkstra stuff
-			public int origin;
-			public double distance;
-			public bool visited;
 
 			// City generation stuff
 			public double score;
@@ -25,8 +21,6 @@ namespace ProceduralCities
 				coord = c;
 				Biome = 0;
 				TerrainHeight = 0;
-				origin = 0;
-				distance = 0;
 				score = 0;
 			}
 		}
@@ -47,6 +41,8 @@ namespace ProceduralCities
 
 		public List<Biome> Biomes;
 		public List<City> Cities;
+		public Pathfinding PathToOcean;
+		public Pathfinding PathToNearestCity;
 
 		protected void Build()
 		{
@@ -57,98 +53,28 @@ namespace ProceduralCities
 
 			Console.WriteLine("Computing terrain and biome");
 			FillTerrainAndBiome();
+
 			Console.WriteLine("Computing distance between terrain and water");
 			ComputeDistanceToWater();
+
 			Console.WriteLine("Building cities");
 			BuildCities();
+
 			Console.WriteLine("Computing route to cities");
 			ComputeDistanceToCities();
 		}
 
-		#region Dijkstra
-
-		IEnumerable<int> GetNeighbors(int index)
-		{
-			for (int i = 0; i < 6; i++)
-			{
-				if (Edges[index, i] == -1)
-					yield break;
-				yield return Edges[index, i];
-			}
-		}
-
-		public void Dijkstra(List<int> origins)
-		{
-			// Unvisited nodes at the border
-			var unvisited = new SortedDictionary<Pair<double, int>, int>();
-
-			foreach (Vertex v in Vertices)
-			{
-				v.distance = double.MaxValue;
-				v.visited = false;
-			}
-
-			foreach (int i in origins)
-			{
-				Vertices[i].distance = 0;
-				Vertices[i].origin = i;
-				unvisited.Add(new Pair<double, int>(0, i), 0);
-			}
-
-			while (unvisited.Count > 0)
-			{
-				Pair<double, int> current = unvisited.First().Key;
-				unvisited.Remove(current);
-
-				double currentDistance = current.item1;
-				int currentIdx = current.item2;
-
-				// Update distances
-				foreach (int j in GetNeighbors(currentIdx))
-				{
-					if (Vertices[j].visited)
-						continue;
-
-					double distance = currentDistance + Coordinates.Distance(Vertices[j].coord, Vertices[currentIdx].coord); // TODO: calculer distance entre current et j
-					if (Vertices[j].distance > distance)
-					{
-						unvisited.Remove(new Pair<double, int>(Vertices[j].distance, j));
-						Vertices[j].distance = distance;
-						Vertices[j].origin = currentIdx;
-						unvisited.Add(new Pair<double, int>(Vertices[j].distance, j), 0);
-					}
-				}
-
-				Vertices[currentIdx].visited = true;
-			}
-		}
-		#endregion
-
 		void ComputeDistanceToWater()
 		{
 			var watch = System.Diagnostics.Stopwatch.StartNew();
-			List<int> ocean = new List<int>();
-			for (int i = 0, n = Vertices.Count; i < n; i++)
-			{
-				if (Vertices[i].TerrainHeight < 0)
-					ocean.Add(i);
-			}
-
-			Console.WriteLine("Found {0} ocean nodes in {1}", ocean.Count, watch.Elapsed);
-			Dijkstra(ocean);
+			PathToOcean = new Pathfinding(this, Enumerable.Range(0, Vertices.Count).Where(i => Vertices[i].TerrainHeight < 0));
 			Console.WriteLine("Pathfinding in {0}", watch.Elapsed);
 		}
 
 		void ComputeDistanceToCities()
 		{
 			var watch = System.Diagnostics.Stopwatch.StartNew();
-			List<int> cities = new List<int>();
-			foreach (City i in Cities)
-			{
-				cities.Add(i.Position);
-			}
-
-			Dijkstra(cities);
+			PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
 			Console.WriteLine("Pathfinding in {0}", watch.Elapsed);
 
 		}

@@ -143,9 +143,9 @@ namespace ProceduralCities
 						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
 						ctx.Fill();
 
-						if (p.Vertices[i].visited)
+						if (p.PathToNearestCity.Nodes[i].visited)
 						{
-							Planet.Vertex org = p.Vertices[p.Vertices[i].origin];
+							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].origin];
 							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h);
 						}
 						/*for (int j = 0; j < 6; j++)
