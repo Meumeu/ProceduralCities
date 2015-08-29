@@ -61,6 +61,9 @@ namespace ProceduralCities
 					if (Nodes[j].visited)
 						continue;
 
+					if (planet.Vertices[j].TerrainHeight < 0)
+						continue;
+
 					double distance = currentDistance + Coordinates.Distance(planet.Vertices[j].coord, planet.Vertices[currentIdx].coord);
 					if (Nodes[j].distance > distance)
 					{
