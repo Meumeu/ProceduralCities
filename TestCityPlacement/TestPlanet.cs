@@ -42,14 +42,27 @@ namespace ProceduralCities
 				Biomes = new List<Biome>(nb_biomes);
 				for (int i = 0; i < nb_biomes; i++)
 				{
-					Biomes.Add(new Biome() { name = reader.ReadString() });
+					double d;
+					string n = reader.ReadString();
+					switch (n)
+					{
+					case "Ice Caps":
+					case "Water":
+						d = 0;
+						break;
+					case "Deserts":
+						d = 0.1;
+						break;
+					default:
+						d = 1.0;
+						break;
+					}
+
+					Biomes.Add(new Biome() { Name = n, Desirability = d });
 				}
 			}
 
-			BuildIcosphere(8);
-
-			//Console.WriteLine("Filling terrain and biome");
-			//FillTerrainAndBiome();
+			Build();
 		}
 
 		public double GetTerrainHeight(double Latitude, double Longitude)
@@ -117,7 +130,7 @@ namespace ProceduralCities
 
 		public string GetBiomeName(double Latitude, double Longitude)
 		{
-			return Biomes[GetBiomeId(Latitude, Longitude)].name;
+			return Biomes[GetBiomeId(Latitude, Longitude)].Name;
 		}
 
 		public byte GetBiomeId(double Latitude, double Longitude)
@@ -137,7 +150,8 @@ namespace ProceduralCities
 		{
 			for (int i = 0, n = Vertices.Count; i < n; i++)
 			{
-				
+				Vertices[i].TerrainHeight = GetTerrainHeight(Vertices[i].coord.Latitude, Vertices[i].coord.Longitude);
+				Vertices[i].Biome = GetBiomeId(Vertices[i].coord.Latitude, Vertices[i].coord.Longitude);
 			}
 		}
 	}

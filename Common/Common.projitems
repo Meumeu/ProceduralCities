@@ -10,8 +10,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)SimplexNoise.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Icosphere.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Coordinates.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Planet.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pair.cs" />
   </ItemGroup>
 </Project>

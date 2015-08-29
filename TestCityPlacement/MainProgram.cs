@@ -6,29 +6,6 @@ namespace ProceduralCities
 {
 	class MainProgram
 	{
-		static void TestIcosphere()
-		{
-			/*double radius = 600;
-			Icosphere sphere = new Icosphere(8);
-			Console.WriteLine("{0} triangles", sphere.Triangles.Count);
-
-			double area = 0;
-			foreach(var tri in sphere.Triangles)
-			{
-				Icosphere.Vertex v1 = sphere.Vertices[tri.a];
-				Icosphere.Vertex v2 = sphere.Vertices[tri.b];
-				Icosphere.Vertex v3 = sphere.Vertices[tri.c];
-
-				Icosphere.Vertex u = new Icosphere.Vertex(v2.x - v1.x, v2.y - v1.y, v2.z - v1.z);
-				Icosphere.Vertex v = new Icosphere.Vertex(v3.x - v1.x, v3.y - v1.y, v3.z - v1.z);
-				Icosphere.Vertex w = new Icosphere.Vertex(u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.z);
-				area += Math.Sqrt(w.x * w.x + w.y * w.y + w.z * w.z) / 2;
-			}
-
-			Console.WriteLine("Average area: {0}", area / sphere.Triangles.Count * radius * radius);
-			Console.WriteLine("Total area: {0}", area);*/
-		}
-
 		static UInt32 LerpColor(double lambda, UInt32 color0, UInt32 color1)
 		{
 			if (lambda < 0)
@@ -121,45 +98,69 @@ namespace ProceduralCities
 			}
 		}
 
+		static void DrawEdge(Context ctx, Coordinates v1, Coordinates v2, int w, int h)
+		{
+			double x1 = (v1.Longitude + Math.PI) * w / (2 * Math.PI);
+			double y1 = (-v1.Latitude + Math.PI / 2) * h / Math.PI;
+			double x2 = (v2.Longitude + Math.PI) * w / (2 * Math.PI);
+			double y2 = (-v2.Latitude + Math.PI / 2) * h / Math.PI;
+
+			double dx = x2 - x1;
+			double dy = y2 - y1;
+
+			if (Math.Abs(dx) < w / 2)
+			{
+				ctx.MoveTo(x1, y1);
+				ctx.LineTo(x2, y2);
+
+				ctx.MoveTo(x2 - dx / 3 + dy / 3, y2 - dx / 3 - dy / 3);
+				ctx.LineTo(x2, y2);
+				ctx.LineTo(x2 - dx / 3 - dy / 3, y2 + dx / 3 - dy / 3);
+				ctx.Stroke();
+			}
+		}
+
 		public static void Main(string[] args)
 		{
-			Console.WriteLine("TestIcosphere");
-			TestIcosphere();
-
 			TestPlanet p = new TestPlanet("Kerbin.dat");
 
-			Console.WriteLine("Print map");
+			Console.WriteLine("Printing map");
 			//PrintMaps(p, "kerbin.png");
 
-			double lat = -0.0485983; //double.Parse(args[0]);
-			double lon = 285.2757538; //double.Parse(args[1]);
-			Console.WriteLine("Coords: {0} {1}", lat, lon);
-			Console.WriteLine("Biome: {0}", p.GetBiomeName(lat * Math.PI / 180, lon * Math.PI / 180));
-			Console.WriteLine("Alt: {0}", p.GetTerrainHeight(lat * Math.PI / 180, lon * Math.PI / 180));
-
-			
-			Console.WriteLine("Building cities");
 			int w = 4096, h = 2048;
 			byte[] data;
 			using (var surface = CreateMap(out data, p, w, h))
 			{
 				using (var ctx = new Context(surface))
 				{
-					var placement = new CityPlacement(p);
-
 					ctx.SetSourceColor(new Color(0.5, 0.5, 0));
-					foreach (Planet.Vertex pos in p.Vertices)
+
+					for(int i = 0, n = p.Vertices.Count; i < n; i++)
 					{
-						double x = (pos.coord.Longitude + Math.PI) * w / (2 * Math.PI);
-						double y = (-pos.coord.Latitude + Math.PI / 2) * h / Math.PI;
+						double x = (p.Vertices[i].coord.Longitude + Math.PI) * w / (2 * Math.PI);
+						double y = (-p.Vertices[i].coord.Latitude + Math.PI / 2) * h / Math.PI;
 
 						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
 						ctx.Fill();
+
+						if (p.Vertices[i].visited)
+						{
+							Planet.Vertex org = p.Vertices[p.Vertices[i].origin];
+							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h);
+						}
+						/*for (int j = 0; j < 6; j++)
+						{
+							if (p.Edges[i, j] == -1)
+								break;
+
+							DrawEdge(ctx, p.Vertices[i].coord, p.Vertices[p.Edges[i, j]].coord, w, h);
+						}*/
 					}
 
 					ctx.SetSourceColor(new Color(0, 0, 0));
-					foreach (CityPlacement.Position pos in placement.Cities)
+					foreach (Planet.City i in p.Cities)
 					{
+						Coordinates pos = p.Vertices[i.Position].coord;
 						double x = (pos.Longitude + Math.PI) * w / (2 * Math.PI);
 						double y = (-pos.Latitude + Math.PI / 2) * h / Math.PI;
 
