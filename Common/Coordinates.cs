@@ -13,8 +13,8 @@ namespace ProceduralCities
 			this.y = y / r;
 			this.z = z / r;
 
-			Latitude = Math.Asin(y);
-			Longitude = Math.Atan2(z, x);
+			Latitude = Math.Asin(this.y);
+			Longitude = Math.Atan2(this.z, this.x);
 
 			if (double.IsNaN(Longitude))
 				Longitude = 0;
@@ -45,6 +45,11 @@ namespace ProceduralCities
 				Math.Floor(latDeg), Math.Floor(latMin), Math.Floor(latSec), hemisphereNS,
 				Math.Floor(lonDeg), Math.Floor(lonMin), Math.Floor(lonSec), hemisphereEW
 			);
+		}
+
+		public static double Distance(Coordinates u, Coordinates v)
+		{
+			return Math.Acos(u.x * v.x + u.y * v.y + u.z * v.z);
 		}
 	}
 }
