@@ -61,13 +61,6 @@ namespace ProceduralCities
 
 		void AddEdge(int v1, int v2)
 		{
-			if (v1 > v2)
-			{
-				int tmp = v1;
-				v1 = v2;
-				v2 = tmp;
-			}
-
 			for (int i = 0; i < 6; i++)
 			{
 				if (Edges[v1, i] == v2)
@@ -197,8 +190,11 @@ namespace ProceduralCities
 			foreach (Triangle i in Triangles)
 			{
 				AddEdge(i.a, i.b);
-				AddEdge(i.a, i.c);
+				AddEdge(i.b, i.a);
 				AddEdge(i.b, i.c);
+				AddEdge(i.c, i.b);
+				AddEdge(i.a, i.c);
+				AddEdge(i.c, i.a);
 			}
 
 			int nb_edges = 0;
@@ -209,7 +205,7 @@ namespace ProceduralCities
 						nb_edges++;
 			}
 
-			Console.WriteLine("{0} triangles, {1} vertices, {2} edges, elapsed: {3}", Triangles.Count, Vertices.Count, nb_edges, watch.Elapsed);
+			Console.WriteLine("{0} triangles, {1} vertices, {2} edges, elapsed: {3}", Triangles.Count, Vertices.Count, nb_edges / 2, watch.Elapsed);
 		}
 		#endregion
 
