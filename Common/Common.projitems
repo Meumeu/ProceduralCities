@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>{623D5628-749A-494B-AE5D-F0C2A4A9A93D}</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>ProceduralCities</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)SimplexNoise.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Icosphere.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Coordinates.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Planet.cs" />
+  </ItemGroup>
+</Project>
