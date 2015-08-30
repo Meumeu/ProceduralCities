@@ -98,7 +98,7 @@ namespace ProceduralCities
 			}
 		}
 
-		static void DrawEdge(Context ctx, Coordinates v1, Coordinates v2, int w, int h)
+		static void DrawEdge(Context ctx, Coordinates v1, Coordinates v2, int w, int h, bool arrow)
 		{
 			double x1 = (v1.Longitude + Math.PI) * w / (2 * Math.PI);
 			double y1 = (-v1.Latitude + Math.PI / 2) * h / Math.PI;
@@ -107,15 +107,19 @@ namespace ProceduralCities
 
 			double dx = x2 - x1;
 			double dy = y2 - y1;
+			double d = Math.Sqrt(dx * dx + dy * dy);
 
 			if (Math.Abs(dx) < w / 2)
 			{
 				ctx.MoveTo(x1, y1);
 				ctx.LineTo(x2, y2);
 
-				ctx.MoveTo(x2 - dx / 3 + dy / 3, y2 - dx / 3 - dy / 3);
-				ctx.LineTo(x2, y2);
-				ctx.LineTo(x2 - dx / 3 - dy / 3, y2 + dx / 3 - dy / 3);
+				if (arrow && d > 0)
+				{
+					ctx.MoveTo(x2 - dx / d * 5 + dy / d * 5, y2 - dx / d * 5 - dy / d * 5);
+					ctx.LineTo(x2, y2);
+					ctx.LineTo(x2 - dx / d * 5 - dy / d * 5, y2 + dx / d * 5 - dy / d * 5);
+				}
 				ctx.Stroke();
 			}
 		}
@@ -133,7 +137,7 @@ namespace ProceduralCities
 			{
 				using (var ctx = new Context(surface))
 				{
-					ctx.SetSourceColor(new Color(0.5, 0.5, 0));
+					ctx.SetSourceColor(new Color(0.5, 0.7, 0));
 
 					for(int i = 0, n = p.Vertices.Count; i < n; i++)
 					{
@@ -145,16 +149,32 @@ namespace ProceduralCities
 
 						if (p.PathToNearestCity.Nodes[i].visited)
 						{
-							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].origin];
-							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h);
+							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].next];
+							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h, true);
 						}
-						/*for (int j = 0; j < 6; j++)
-						{
-							if (p.Edges[i, j] == -1)
-								break;
+//
+//						if (p.PathToOcean.Nodes[i].visited)
+//						{
+//							Planet.Vertex org = p.Vertices[p.PathToOcean.Nodes[i].origin];
+//							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h);
+//						}
+//
+//						/*for (int j = 0; j < 6; j++)
+//						{
+//							if (p.Edges[i, j] == -1)
+//								break;
+//
+//							DrawEdge(ctx, p.Vertices[i].coord, p.Vertices[p.Edges[i, j]].coord, w, h);
+//						}*/
+					}
 
-							DrawEdge(ctx, p.Vertices[i].coord, p.Vertices[p.Edges[i, j]].coord, w, h);
-						}*/
+					ctx.SetSourceColor(new Color(0.8, 0, 0));
+					foreach(Planet.Road i in p.Roads)
+					{
+						for (int j = 1, n = i.Positions.Count; j < n; j++)
+						{
+							DrawEdge(ctx, p.Vertices[i.Positions[j - 1]].coord, p.Vertices[i.Positions[j]].coord, w, h, false);
+						}
 					}
 
 					ctx.SetSourceColor(new Color(0, 0, 0));

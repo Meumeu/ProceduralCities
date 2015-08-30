@@ -12,7 +12,6 @@ namespace ProceduralCities
 			public int Biome;
 			public double TerrainHeight;
 
-
 			// City generation stuff
 			public double score;
 
@@ -36,18 +35,24 @@ namespace ProceduralCities
 			public int Position;
 		}
 
+		public class Road
+		{
+			public List<int> Positions;
+		}
+
 		public List<Vertex> Vertices;
 		public int[,] Edges;
 
 		public List<Biome> Biomes;
 		public List<City> Cities;
+		public List<Road> Roads;
 		public Pathfinding PathToOcean;
 		public Pathfinding PathToNearestCity;
 
 		protected void Build()
 		{
 			Console.WriteLine("Building icosphere");
-			Icosphere sphere = new Icosphere(8);
+			Icosphere sphere = new Icosphere(6);
 			Vertices = sphere.Vertices;
 			Edges = sphere.Edges;
 
@@ -60,8 +65,11 @@ namespace ProceduralCities
 			Console.WriteLine("Building cities");
 			BuildCities();
 
-			Console.WriteLine("Computing route to cities");
+			Console.WriteLine("Computing zones of influence");
 			ComputeDistanceToCities();
+
+			Console.WriteLine("Computing major roads");
+			BuildRoads();
 		}
 
 		void ComputeDistanceToWater()
@@ -100,12 +108,16 @@ namespace ProceduralCities
 			var rand = new System.Random(0);
 			for (int i = 0; i < 50; i++)
 			{
-				double r = rand.NextDouble() * sumScores;
-				int j = 0;
-				while (r > Vertices[potentialCities[j]].score)
+				int j;
+				do
 				{
-					r -= Vertices[potentialCities[j++]].score;
-				}
+					double r = rand.NextDouble() * sumScores;
+					j = 0;
+					while (r > Vertices[potentialCities[j]].score)
+					{
+						r -= Vertices[potentialCities[j++]].score;
+					}
+				} while (Cities.Any(x => x.Position == potentialCities[j]));
 
 				City c = new City();
 				c.Position = potentialCities[j];
@@ -116,6 +128,51 @@ namespace ProceduralCities
 		#endregion
 
 		#region Build major roads
+		void BuildRoads()
+		{
+			// Compute zone of influence
+			int[] nearestCity = new int[Vertices.Count];
+			for (int i = 0, n = Vertices.Count; i < n; i++)
+			{
+				if (PathToNearestCity.Nodes[i].visited)
+					nearestCity[i] = PathToNearestCity.GetPath(i).Last();
+				else
+					nearestCity[i] = -1;
+			}
+
+			// Find neighbor cities
+			HashSet<Pair<int, int>> neighborCities = new HashSet<Pair<int, int>>();
+			for (int i = 0, n = Vertices.Count; i < n; i++)
+			{
+				for (int j = 0; j < 6 && Edges[i, j] != -1; j++)
+				{
+					int k = Edges[i, j];
+					if (nearestCity[i] == nearestCity[k])
+						continue;
+
+					if (nearestCity[i] == -1 || nearestCity[k] == -1)
+						continue;
+
+					if (k > i)
+						continue;
+
+					neighborCities.Add(new Pair<int, int>(nearestCity[i], nearestCity[k]));
+				}
+			}
+
+			// Make roads
+			Roads = new List<Road>();
+			foreach (Pair<int, int> i in neighborCities)
+			{
+				Pathfinding path = new Pathfinding(this, i.item1, i.item2);
+				Road r = new Road();
+				r.Positions = path.GetPath(i.item2).ToList();
+
+				bool test = r.Positions.All(x => nearestCity[x] == i.item1 || nearestCity[x] == i.item2);
+				if (test)
+					Roads.Add(r);
+			}
+		}
 		#endregion
 
 		#region To be implemented by derived classes

@@ -8,7 +8,7 @@ namespace ProceduralCities
 	{
 		public struct Node
 		{
-			public int origin;
+			public int next;
 			public double distance;
 			public bool visited;
 		}
@@ -26,11 +26,8 @@ namespace ProceduralCities
 			}
 		}
 
-		public Pathfinding(Planet planet, IEnumerable<int> origins)
+		void Dijkstra(IEnumerable<int>  targets, int origin)
 		{
-			this.planet = planet;
-			Nodes = new Node[planet.Vertices.Count];
-
 			// Unvisited nodes at the border
 			var unvisited = new SortedDictionary<Pair<double, int>, int>();
 
@@ -40,10 +37,10 @@ namespace ProceduralCities
 				Nodes[i].visited = false;
 			}
 
-			foreach (int i in origins)
+			foreach (int i in targets)
 			{
 				Nodes[i].distance = 0;
-				Nodes[i].origin = i;
+				Nodes[i].next = i;
 				unvisited.Add(new Pair<double, int>(0, i), 0);
 			}
 
@@ -69,13 +66,43 @@ namespace ProceduralCities
 					{
 						unvisited.Remove(new Pair<double, int>(Nodes[j].distance, j));
 						Nodes[j].distance = distance;
-						Nodes[j].origin = currentIdx;
+						Nodes[j].next = currentIdx;
 						unvisited.Add(new Pair<double, int>(Nodes[j].distance, j), 0);
 					}
 				}
 
 				Nodes[currentIdx].visited = true;
+				if (currentIdx == origin)
+					return;
 			}
+		}
+
+		public Pathfinding(Planet planet, IEnumerable<int> targets, int origin = -1)
+		{
+			this.planet = planet;
+			Nodes = new Node[planet.Vertices.Count];
+
+			Dijkstra(targets, origin);
+		}
+
+		public Pathfinding(Planet planet, int target, int origin = -1)
+		{
+			this.planet = planet;
+			Nodes = new Node[planet.Vertices.Count];
+
+			List<int> tmp = new List<int>();
+			tmp.Add(target);
+			Dijkstra(tmp, origin);
+		}
+
+		public IEnumerable<int> GetPath(int from)
+		{
+			while (Nodes[from].next != from)
+			{
+				yield return from;
+				from = Nodes[from].next;
+			}
+			yield return from;
 		}
 	}
 }
