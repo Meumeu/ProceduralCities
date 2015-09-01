@@ -49,50 +49,36 @@ namespace ProceduralCities
 		public Pathfinding PathToOcean;
 		public Pathfinding PathToNearestCity;
 
-		protected void Build()
+		public void Build()
 		{
-			Console.WriteLine("Building icosphere");
+			Log("Building icosphere");
 			Icosphere sphere = new Icosphere(6);
 			Vertices = sphere.Vertices;
 			Edges = sphere.Edges;
 
-			Console.WriteLine("Computing terrain and biome");
+			Log("Computing terrain and biome");
 			FillTerrainAndBiome();
 
-			Console.WriteLine("Computing distance between terrain and water");
-			ComputeDistanceToWater();
+			Log("Computing distance between terrain and water");
+			PathToOcean = new Pathfinding(this, Enumerable.Range(0, Vertices.Count).Where(i => Vertices[i].TerrainHeight < 0));
 
-			Console.WriteLine("Building cities");
+			Log("Building cities");
 			BuildCities();
 
-			Console.WriteLine("Computing zones of influence");
-			ComputeDistanceToCities();
-
-			Console.WriteLine("Computing major roads");
-			BuildRoads();
-		}
-
-		void ComputeDistanceToWater()
-		{
-			var watch = System.Diagnostics.Stopwatch.StartNew();
-			PathToOcean = new Pathfinding(this, Enumerable.Range(0, Vertices.Count).Where(i => Vertices[i].TerrainHeight < 0));
-			Console.WriteLine("Pathfinding in {0}", watch.Elapsed);
-		}
-
-		void ComputeDistanceToCities()
-		{
-			var watch = System.Diagnostics.Stopwatch.StartNew();
+			Log("Computing zones of influence");
 			PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
-			Console.WriteLine("Pathfinding in {0}", watch.Elapsed);
 
+			Log("Computing major roads");
+			BuildRoads();
 		}
 
 		#region Build major cities
 		void BuildCities()
 		{
+			Log("BuildCities: 1");
 			List<int> potentialCities = new List<int>();
 			double sumScores = 0;
-
+			Log("BuildCities: 2");
 			for (int i = 0, n = Vertices.Count; i < n; i++)
 			{
 				if (Vertices[i].TerrainHeight < 0)
@@ -103,7 +89,7 @@ namespace ProceduralCities
 				sumScores += Vertices[i].score;
 				potentialCities.Add(i);
 			}
-
+			Log("BuildCities: 3");
 			Cities = new List<City>();
 			var rand = new System.Random(0);
 			for (int i = 0; i < 50; i++)
@@ -122,7 +108,7 @@ namespace ProceduralCities
 				City c = new City();
 				c.Position = potentialCities[j];
 				Cities.Add(c);
-				Console.WriteLine("Founded city {0}, position: {1}, {2}, altitude: {3} m", i + 1, Vertices[potentialCities[j]].coord, Biomes[Vertices[potentialCities[j]].Biome].Name, Vertices[potentialCities[j]].TerrainHeight);
+				Log(string.Format("Founded city {0}, position: {1}, {2}, altitude: {3} m", i + 1, Vertices[potentialCities[j]].coord, Biomes[Vertices[potentialCities[j]].Biome].Name, Vertices[potentialCities[j]].TerrainHeight));
 			}
 		}
 		#endregion
@@ -175,8 +161,20 @@ namespace ProceduralCities
 		}
 		#endregion
 
+		void FillTerrainAndBiome()
+		{
+			List<Coordinates> coords = Vertices.Select(x => x.coord).ToList();
+			var data = GetTerrainAndBiome(coords);
+			for(int i = 0, n = Vertices.Count; i < n; i++)
+			{
+				Vertices[i].TerrainHeight = data[i].item1;
+				Vertices[i].Biome = data[i].item2;
+			}
+		}
+
 		#region To be implemented by derived classes
-		protected abstract void FillTerrainAndBiome();
+		protected abstract List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords);
+		protected abstract void Log(string message);
 		#endregion
 	}
 }

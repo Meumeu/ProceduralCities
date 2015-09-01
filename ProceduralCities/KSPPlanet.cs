@@ -1,21 +1,19 @@
 ﻿using System;
+using System.Linq;
 using System.IO;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 namespace ProceduralCities
 {
-	public partial class KSPPlanet : MonoBehaviour, IConfigNode
+	public class KSPPlanet : Planet
 	{
-		internal Utils.EditableInt seed = new Utils.EditableInt("Seed");
-		internal Utils.EditableDouble gain = new Utils.EditableDouble("Gain");
-		internal Utils.EditableDouble lacunarity = new Utils.EditableDouble("Lacunarity");
-		internal Utils.EditableDouble frequency = new Utils.EditableDouble("Frequency");
-		internal Utils.EditableDouble amplitude = new Utils.EditableDouble("Amplitude");
-		internal string _name;
+		internal int Seed;
+		internal string Name;
 
-		SimplexNoise noise;
-		CelestialBody body;
+//		SimplexNoise noise;
+		CelestialBody Body;
 
 		public KSPPlanet()
 		{
@@ -29,96 +27,69 @@ namespace ProceduralCities
 			{
 				if (i.name == node.name)
 				{
-					body = i;
+					Body = i;
 					break;
 				}
 			}
 
-			if (body == null)
+			if (Body == null)
 			{
 				throw new ArgumentException("Celestial body not found: " + node.name);
 			}
 
-			_name = node.name;
+			Name = node.name;
 
-			seed.Set(node.GetValue("seed"));
-			gain.Set(node.GetValue("gain"));
-			lacunarity.Set(node.GetValue("lacunarity"));
-			frequency.Set(node.GetValue("frequency") ?? (0.1 / body.Radius).ToString());
-			amplitude.Set(node.GetValue("amplitude"));
+			// FIXME: don't hardcode values
+			Biomes = Body.BiomeMap.Attributes.Select(x => new Biome() {
+				Name = x.name,
+				Desirability = x.name == "Ice Caps" ? 0.0 : x.name == "Water" ? 0.0 : x.name == "Deserts" ? 0.1 : 1.0
+			}).ToList();
 
-			UpdateNoise();
-		}
-
-		public void UpdateNoise()
-		{
-			noise = new SimplexNoise(seed, gain, lacunarity, frequency, amplitude);
+			try
+			{
+				Seed = int.Parse(node.GetValue("seed"));
+			}
+			finally
+			{
+			}
 		}
 
 		public void Save(ConfigNode node)
 		{
-			node.name = _name;
-			node.AddValue("seed", seed);
-			node.AddValue("gain", gain);
-			node.AddValue("lacunarity", lacunarity);
-			node.AddValue("frequency", frequency);
-			node.AddValue("amplitude", amplitude);
-		}
-
-		public void Update()
-		{
-			if (FlightGlobals.currentMainBody.name != _name)
-				return;
-		}
-
-		public double GetDensity(double lat, double lon)
-		{
-			return Math.Abs(noise.Generate(
-				body.Radius * Math.Cos(lon) * Math.Cos(lat),
-				body.Radius * Math.Sin(lon) * Math.Cos(lat),
-				body.Radius * Math.Sin(lat),
-				8));
+			node.name = Name;
+			node.AddValue("seed", Seed);
 		}
 
 		public double GetTerrainHeight(double lat, double lon)
 		{
-			return body.pqsController.GetSurfaceHeight(body.GetRelSurfaceNVector(lat * 180 / Math.PI, lon * 180 / Math.PI)) - body.Radius;
+			return Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(lat * 180 / Math.PI, lon * 180 / Math.PI)) - Body.Radius;
 		}
 
 		public string GetBiomeName(double lat, double lon)
 		{
-			if (body.BiomeMap == null)
+			if (Body.BiomeMap == null)
 				return "";
 
-			return body.BiomeMap.GetAtt(lat, lon).name;
+			return Body.BiomeMap.GetAtt(lat, lon).name;
 		}
 
-		/*public Texture2D GetMap(double resolution)
+		public int GetBiome(double lat, double lon)
 		{
-			double minValue = double.MaxValue;
-			double maxValue = double.MinValue;
+			if (Body.BiomeMap == null)
+				return -1;
 
-			double[,] values = new double[(int)(360 * resolution), (int)(180 * resolution)];
-
-			for (int lon = 0; lon < 360 * resolution; lon++)
+			var attr = Body.BiomeMap.GetAtt(lat, lon);
+			for (int i = 0, n = Body.BiomeMap.Attributes.Length; i < n; i++)
 			{
-				for (int lat = 0; lat < 180 * resolution; lat++)
-				{
-					double flon = (lon / resolution - 180) * Math.PI / 180.0;
-					double flat = (90 - lat / resolution) * Math.PI / 180.0;
-					if (GetTerrainHeight(flon, flat) < 0)
-						values[lon, lat] = 0;
-					else
-						values[lon, lat] = Math.Max(0, GetDensity(flon, flat));
-
-					minValue = Math.Min(minValue, values[lon, lat]);
-					maxValue = Math.Max(maxValue, values[lon, lat]);
-				}
+				if (attr == Body.BiomeMap.Attributes[i])
+					return i;
 			}
 
-			return Utils.TextureFromArrayDensity(values, minValue, maxValue);
+			Debug.Log("[ProceduralCities] Unknown biome ???");
+			return -1;
 		}
 
+		/*
 		public Texture2D GetHeightMap(double resolution)
 		{
 			if (body.pqsController == null)
@@ -151,15 +122,14 @@ namespace ProceduralCities
 			return Utils.TextureFromArrayHeight(values, minValue, maxValue);
 		}*/
 
-		public void ExportMaps(int width, int height)
+		public void ExportData(int width, int height)
 		{
 			string dir = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
 
-			using (BinaryWriter writer = new BinaryWriter(File.Open(dir + "/" + _name + ".dat", FileMode.Create)))
+			using (BinaryWriter writer = new BinaryWriter(File.Open(dir + "/" + Name + ".dat", FileMode.Create)))
 			{
 				writer.Write(width);
 				writer.Write(height);
-
 				for (int i = 0; i < height; i++)
 				{
 					double lat = ((double)i / (double)height) * Math.PI - Math.PI / 2;
@@ -200,5 +170,53 @@ namespace ProceduralCities
 				}
 			}
 		}
+
+		public void Update(Coordinates coord)
+		{
+			PlanetDatabase.Log(string.Format("[ProceduralCities] New position: {0} {1}", Name, coord));
+		}
+
+		#region Interface to Planet
+		protected override List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
+		{
+			List<Pair<double, int>> ret = new List<Pair<double, int>>(coords.Count);
+			bool finished = false;
+
+
+			PlanetDatabase.QueueToMainThread(() =>
+			{
+				Monitor.Enter(ret);
+				try
+				{
+					foreach(Coordinates i in coords)
+					{
+						ret.Add(new Pair<double, int>(
+							GetTerrainHeight(i.Latitude, i.Longitude),
+							GetBiome(i.Latitude, i.Longitude)
+						));
+					}
+					finished = true;
+					Monitor.Pulse(ret);
+				}
+				finally
+				{
+					Monitor.Exit(ret);
+				}
+			});
+
+			Monitor.Enter(ret);
+			while(!finished)
+				Monitor.Wait(ret);
+			Monitor.Exit(ret);
+			PlanetDatabase.Log("Got terrain data");
+
+			return ret;
+		}
+
+		protected override void Log(string message)
+		{
+			PlanetDatabase.Log(message);
+		}
+		#endregion
 	}
 }

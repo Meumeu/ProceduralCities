@@ -46,6 +46,7 @@
     <Compile Include="ProceduralCities.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="KSPPlanet.cs" />
+    <Compile Include="PlanetDatabase.cs" />
   </ItemGroup>
   <Import Project="..\Common\Common.projitems" Label="Shared" Condition="Exists('..\Common\Common.projitems')" />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

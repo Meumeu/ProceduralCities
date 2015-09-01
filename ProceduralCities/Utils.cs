@@ -76,47 +76,6 @@ namespace ProceduralCities
 				Set(value.ToString());
 			}
 		}
-	
-		public static Texture2D TextureFromArrayDensity(double[,] data, double minValue, double maxValue)
-		{
-			var colours = new GradientColorKey[5];
-
-			colours[0].color = new Color(0.0f, 0.0f, 0.0f);
-			colours[0].time = 0.0f;
-			colours[1].color = new Color(0.5f, 1.0f, 0.5f);
-			colours[1].time = 0.01f;
-			colours[2].color = new Color(0.5f, 1.0f, 1.0f);
-			colours[2].time = 0.33f;
-			colours[3].color = new Color(0.5f, 0.5f, 1.0f);
-			colours[3].time = 0.67f;
-			colours[4].color = new Color(1.0f, 0.5f, 0.5f);
-			colours[4].time = 1.0f;
-
-			int width = data.GetLength(0);
-			int height = data.GetLength(1);
-
-			Texture2D tex = new Texture2D(width, height, TextureFormat.RGB24, false);
-
-			for (int x = 0; x < width; x++)
-			{
-				for (int y = 0; y < height; y++)
-				{
-					float value = Mathf.Clamp01((float)((data[x, y] - minValue) / (maxValue - minValue)));
-					for(int i = 1; i < colours.Length; i++)
-					{
-						if (value < colours[i].time)
-						{
-							float lambda = (value - colours[i - 1].time) / (colours[i].time - colours[i - 1].time);
-							tex.SetPixel(x, y, Color.Lerp(colours[i - 1].color, colours[i].color, lambda));
-							break;
-						}
-					}
-				}
-			}
-
-			tex.Apply();
-			return tex;
-		}
 
 		// Color palette from SCANsat
 		/* Wikipedia color scheme licensed under Creative Commons Attribution-Share Alike 3.0 Unported license
@@ -145,7 +104,7 @@ namespace ProceduralCities
 
 			colours[0].time = 0;
 			colours[1].time = 0.001f;
-				
+
 			for (int i = 0; i < colours.Length; i++)
 			{
 				colours[i].time = (float)i / (float)(colours.Length - 1);

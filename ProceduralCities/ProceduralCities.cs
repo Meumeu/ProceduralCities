@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Threading;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace ProceduralCities
 {
-	[KSPScenario(ScenarioCreationOptions.AddToAllGames, GameScenes.FLIGHT)]
+	[KSPScenario(ScenarioCreationOptions.AddToAllGames, GameScenes.SPACECENTER, GameScenes.FLIGHT, GameScenes.TRACKSTATION)]
 	public class ProceduralCities : ScenarioModule
 	{
 		Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
@@ -26,6 +27,16 @@ namespace ProceduralCities
 			AddButton();
 		}
 
+		public override void OnAwake()
+		{
+			base.OnAwake();
+			Debug.Log("[ProceduralCities] OnAwake");
+		}
+
+		public void OnDestroy()
+		{
+		}
+
 		void AddButton()
 		{
 			if (ApplicationLauncher.Instance == null)
@@ -42,7 +53,7 @@ namespace ProceduralCities
 				showWindow, hideWindow,
 				null, null,
 				null, null,
-				ApplicationLauncher.AppScenes.ALWAYS,
+				ApplicationLauncher.AppScenes.SPACECENTER | ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.MAPVIEW | ApplicationLauncher.AppScenes.TRACKSTATION,
 				windowVisible ? activeTexture : inactiveTexture);
 		}
 
@@ -65,68 +76,40 @@ namespace ProceduralCities
 				DrawWindow, "ProceduralCities");
 		}
 
-		Texture2D lastComputedMap;
-		Texture2D heightMap;
-		Utils.EditableDouble latitude = new Utils.EditableDouble("Latitude");
-		Utils.EditableDouble longitude = new Utils.EditableDouble("Longitude");
+//		Texture2D lastComputedMap;
 
 		void DrawWindow(int windowId)
 		{
-			GUILayout.Label("Current planet: " + FlightGlobals.currentMainBody.name);
+			string planet = FlightGlobals.currentMainBody.name;
+			GUILayout.Label("Current planet: " + planet);
 
-			if (InhabitedBodies.ContainsKey(FlightGlobals.currentMainBody.name))
+			KSPPlanet p = null;
+			lock (InhabitedBodies)
 			{
-				KSPPlanet p = InhabitedBodies[FlightGlobals.currentMainBody.name];
-				p.seed.Draw();
-				p.gain.Draw();
-				p.lacunarity.Draw();
-				p.frequency.Draw();
-				p.amplitude.Draw();
-
-				if (lastComputedMap)
+				if (InhabitedBodies.ContainsKey(planet))
 				{
-					GUILayout.Label("Population density");
-					GUILayout.Box(lastComputedMap, GUIStyle.none, new GUILayoutOption[] {
-						GUILayout.Width(lastComputedMap.width),
-						GUILayout.Height(lastComputedMap.height)
-					});
+					p = InhabitedBodies[planet];
 				}
-
-				if (heightMap)
-				{
-					GUILayout.Label("Height map");
-					GUILayout.Box(heightMap, GUIStyle.none, new GUILayoutOption[] {
-						GUILayout.Width(heightMap.width),
-						GUILayout.Height(heightMap.height)
-					});
-				}
-
-				if (GUILayout.Button("Regenerate maps"))
-				{
-					/*p.UpdateNoise();
-					lastComputedMap = p.GetMap(2.0);
-					if (!heightMap)
-						heightMap = p.GetHeightMap(2.0);*/
-				}
+			}
+			if (p != null)
+			{
+//				if (lastComputedMap)
+//				{
+//					GUILayout.Label("Map");
+//					GUILayout.Box(lastComputedMap, GUIStyle.none, new GUILayoutOption[] {
+//						GUILayout.Width(lastComputedMap.width),
+//						GUILayout.Height(lastComputedMap.height)
+//					});
+//				}
 
 				if (GUILayout.Button("Export maps"))
 				{
-					p.ExportMaps(2048, 1024);
+					p.ExportData(2048, 1024);
 				}
-
-				latitude.Draw();
-				longitude.Draw();
-				if (GUILayout.Button("Here"))
-				{
-					latitude.Set(FlightGlobals.ActiveVessel.latitude);
-					longitude.Set(FlightGlobals.ActiveVessel.longitude);
-				}
-				GUILayout.Label("Biome: " + FlightGlobals.currentMainBody.BiomeMap.GetAtt(latitude * Math.PI / 180, longitude * Math.PI / 180).name);
-				GUILayout.Label("Altitude: " + FlightGlobals.currentMainBody.pqsController.GetSurfaceHeight(FlightGlobals.currentMainBody.GetRelSurfaceNVector(latitude, longitude)));
 			}
 			else
 			{
-				GUILayout.Label(FlightGlobals.currentMainBody.name + " is uninhabited");
+				GUILayout.Label(planet + " is uninhabited");
 			}
 
 			GUI.DragWindow();
@@ -134,71 +117,25 @@ namespace ProceduralCities
 
 		public void Update()
 		{
-		}
-
-		public override void OnAwake()
-		{
-			base.OnAwake();
-			Debug.Log("[ProceduralCities] OnAwake");
-		}
-
-		void Initialize()
-		{
-			Debug.Log("[ProceduralCities] Initializing planets");
-
-			var kerbinConfig = new ConfigNode("Kerbin");
-			kerbinConfig.AddValue("seed", 0);
-			kerbinConfig.AddValue("gain", 0.5);
-			kerbinConfig.AddValue("lacunarity", 2);
-			kerbinConfig.AddValue("frequency", 2.0e-7);
-			kerbinConfig.AddValue("amplitude", 1);
-
-			var kerbin = new KSPPlanet();
-			kerbin.Load(kerbinConfig);
-			InhabitedBodies.Add("Kerbin", kerbin);
-
-			initialized = true;
-			Debug.Log("[ProceduralCities] Done");
+			PlanetDatabase.Instance.Update();
 		}
 
 		public override void OnLoad(ConfigNode node)
 		{
 			if (!initialized)
 			{
-				Initialize();
-				return;
+				PlanetDatabase.Instance.Initialize();
+				initialized = true;
 			}
-
-			Debug.Log("[ProceduralCities] Loading planets");
-			InhabitedBodies.Clear();
-			foreach(ConfigNode n in node.GetNodes("InhabitedBody"))
+			else
 			{
-				try
-				{
-					Debug.Log("[ProceduralCities] Loading " + n.name);
-					var planet = new KSPPlanet();
-					planet.Load(n);
-
-					InhabitedBodies.Add(n.name, planet);
-					Debug.Log("[ProceduralCities] Loaded " + n.name);
-				}
-				catch(Exception e)
-				{
-					Debug.LogException(e);
-				}
+				PlanetDatabase.Instance.Load(node);
 			}
-			Debug.Log("[ProceduralCities] Done");
 		}
 
 		public override void OnSave(ConfigNode node)
 		{
-			foreach (var i in InhabitedBodies)
-			{
-				var n = new ConfigNode(i.Key);
-				i.Value.Save(n);
-
-				node.AddNode(n);
-			}
+			PlanetDatabase.Instance.Save(node);
 		}
 	}
 }

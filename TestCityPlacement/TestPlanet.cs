@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 
@@ -146,14 +147,19 @@ namespace ProceduralCities
 			return biomes[i , j];
 		}
 
-		protected override void FillTerrainAndBiome()
+		#region Interface to Planet
+		protected override List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
 		{
-			for (int i = 0, n = Vertices.Count; i < n; i++)
-			{
-				Vertices[i].TerrainHeight = GetTerrainHeight(Vertices[i].coord.Latitude, Vertices[i].coord.Longitude);
-				Vertices[i].Biome = GetBiomeId(Vertices[i].coord.Latitude, Vertices[i].coord.Longitude);
-			}
+			return coords.Select(x => new Pair<double, int>(
+				GetTerrainHeight(x.Latitude, x.Longitude),
+				GetBiomeId(x.Latitude, x.Longitude))).ToList();
 		}
+
+		protected override void Log(string message)
+		{
+			Console.WriteLine(message);
+		}
+		#endregion
 	}
 }
 
