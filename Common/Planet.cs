@@ -1,11 +1,14 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace ProceduralCities
 {
+	[Serializable]
 	public abstract class Planet
 	{
+		[Serializable]
 		public class Vertex
 		{
 			public Coordinates coord;
@@ -18,27 +21,36 @@ namespace ProceduralCities
 			public Vertex(Coordinates c)
 			{
 				coord = c;
-				Biome = 0;
-				TerrainHeight = 0;
-				score = 0;
+			}
+
+			public Vertex()
+			{
 			}
 		}
 
+		[Serializable]
 		public class Biome
 		{
 			public string Name;
 			public double Desirability;
+
 		}
 
+		[Serializable]
 		public class City
 		{
 			public int Position;
 		}
 
+		[Serializable]
 		public class Road
 		{
-			public List<int> Positions;
+			public List<int> Positions = new List<int>();
 		}
+
+		public bool Built;
+		public int Seed;
+		Random PRNG;
 
 		public List<Vertex> Vertices;
 		public int[,] Edges;
@@ -51,34 +63,45 @@ namespace ProceduralCities
 
 		public void Build()
 		{
-			Log("Building icosphere");
-			Icosphere sphere = new Icosphere(6);
-			Vertices = sphere.Vertices;
-			Edges = sphere.Edges;
+			if (!Built)
+			{
+				Log("Initializigng PRNG with seed " + Seed);
+				PRNG = new System.Random(Seed);
 
-			Log("Computing terrain and biome");
-			FillTerrainAndBiome();
+				Log("Building icosphere");
+				Icosphere sphere = new Icosphere(6);
+				Vertices = sphere.Vertices;
+				Edges = sphere.Edges;
 
-			Log("Computing distance between terrain and water");
-			PathToOcean = new Pathfinding(this, Enumerable.Range(0, Vertices.Count).Where(i => Vertices[i].TerrainHeight < 0));
+				Log("Computing terrain and biome");
+				FillTerrainAndBiome();
 
-			Log("Building cities");
-			BuildCities();
+				Log("Computing distance between terrain and water");
+				PathToOcean = new Pathfinding(this, Enumerable.Range(0, Vertices.Count).Where(i => Vertices[i].TerrainHeight < 0));
 
-			Log("Computing zones of influence");
-			PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
+				Log("Building cities");
+				BuildCities();
 
-			Log("Computing major roads");
-			BuildRoads();
+				Log("Computing zones of influence");
+				PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
+
+				Log("Computing major roads");
+				BuildRoads();
+
+				Built = true;
+				BuildFinished(fromCache: false);
+			}
+			else
+			{
+				BuildFinished(fromCache: true);
+			}
 		}
 
 		#region Build major cities
 		void BuildCities()
 		{
-			Log("BuildCities: 1");
 			List<int> potentialCities = new List<int>();
 			double sumScores = 0;
-			Log("BuildCities: 2");
 			for (int i = 0, n = Vertices.Count; i < n; i++)
 			{
 				if (Vertices[i].TerrainHeight < 0)
@@ -89,15 +112,14 @@ namespace ProceduralCities
 				sumScores += Vertices[i].score;
 				potentialCities.Add(i);
 			}
-			Log("BuildCities: 3");
+
 			Cities = new List<City>();
-			var rand = new System.Random(0);
 			for (int i = 0; i < 50; i++)
 			{
 				int j;
 				do
 				{
-					double r = rand.NextDouble() * sumScores;
+					double r = PRNG.NextDouble() * sumScores;
 					j = 0;
 					while (r > Vertices[potentialCities[j]].score)
 					{
@@ -108,7 +130,7 @@ namespace ProceduralCities
 				City c = new City();
 				c.Position = potentialCities[j];
 				Cities.Add(c);
-				Log(string.Format("Founded city {0}, position: {1}, {2}, altitude: {3} m", i + 1, Vertices[potentialCities[j]].coord, Biomes[Vertices[potentialCities[j]].Biome].Name, Vertices[potentialCities[j]].TerrainHeight));
+				// Log(string.Format("Founded city {0}, position: {1}, {2}, altitude: {3} m", i + 1, Vertices[potentialCities[j]].coord, Biomes[Vertices[potentialCities[j]].Biome].Name, Vertices[potentialCities[j]].TerrainHeight));
 			}
 		}
 		#endregion
@@ -147,17 +169,66 @@ namespace ProceduralCities
 			}
 
 			// Make roads
-			Roads = new List<Road>();
+			var roadSegments = new Dictionary<int, List<int>>();
 			foreach (Pair<int, int> i in neighborCities)
 			{
 				Pathfinding path = new Pathfinding(this, i.item1, i.item2);
-				Road r = new Road();
-				r.Positions = path.GetPath(i.item2).ToList();
+				List<int> points = path.GetPath(i.item2).ToList();
 
-				bool test = r.Positions.All(x => nearestCity[x] == i.item1 || nearestCity[x] == i.item2);
-				if (test)
-					Roads.Add(r);
+				if (points.All(x => nearestCity[x] == i.item1 || nearestCity[x] == i.item2))
+				{
+					for (int j = 1, n = points.Count; j < n; j++)
+					{
+						if (roadSegments.ContainsKey(points[j - 1]))
+						{
+							if (!roadSegments[points[j - 1]].Contains(points[j]))
+								roadSegments[points[j - 1]].Add(points[j]);
+						}
+						else
+							roadSegments[points[j - 1]] = new[] { points[j] }.ToList();
+
+						if (roadSegments.ContainsKey(points[j]))
+						{
+							if (!roadSegments[points[j]].Contains(points[j - 1]))
+								roadSegments[points[j]].Add(points[j - 1]);
+						}
+						else
+							roadSegments[points[j]] = new[] { points[j - 1] }.ToList();
+					}
+				}
 			}
+
+			// A road ends at an intersection (count > 2) or at a city
+			var roadEnd = roadSegments.Where(x => x.Value.Count == 1 || x.Value.Count > 2 || Cities.Any(y => y.Position == x.Key)).Select(x => x.Key).ToList();
+
+			Roads = new List<Road>();
+			foreach (int i in roadEnd)
+			{
+				foreach (int j in roadSegments[i])
+				{
+					Road r = new Road();
+
+					r.Positions.Add(i);
+
+					int k = j;
+					while (!roadEnd.Contains(k))
+					{
+						r.Positions.Add(k);
+						k = roadSegments[k].First(x => x != r.Positions[r.Positions.Count - 2]);
+					}
+					r.Positions.Add(k);
+
+					foreach(int l in r.Positions)
+					{
+						System.Diagnostics.Debug.Assert(r.Positions.Count(x => x == l) == 1);
+					}
+
+					Roads.Add(r);
+				}
+
+			}
+
+			Log(string.Format("Created {0} roads", Roads.Count));
 		}
 		#endregion
 
@@ -175,6 +246,7 @@ namespace ProceduralCities
 		#region To be implemented by derived classes
 		protected abstract List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords);
 		protected abstract void Log(string message);
+		protected virtual void BuildFinished(bool fromCache) {}
 		#endregion
 	}
 }

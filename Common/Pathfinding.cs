@@ -4,8 +4,10 @@ using System.Collections.Generic;
 
 namespace ProceduralCities
 {
+	[Serializable]
 	public class Pathfinding
 	{
+		[Serializable]
 		public struct Node
 		{
 			public int next;
@@ -16,13 +18,30 @@ namespace ProceduralCities
 		Planet planet;
 		public readonly Node[] Nodes;
 
-		IEnumerable<int> GetNeighbors(int index)
+		IEnumerable<int> GetNeighbors(int index, int level = 0)
 		{
-			for (int i = 0; i < 6; i++)
+			if (level == 0)
 			{
-				if (planet.Edges[index, i] == -1)
-					yield break;
-				yield return planet.Edges[index, i];
+				for (int i = 0; i < 6; i++)
+				{
+					if (planet.Edges[index, i] == -1)
+						yield break;
+					yield return planet.Edges[index, i];
+				}
+			}
+			else
+			{
+				for (int i = 0; i < 6; i++)
+				{
+					if (planet.Edges[index, i] == -1)
+						yield break;
+
+					if (planet.Vertices[planet.Edges[index, i]].TerrainHeight < 0)
+						continue;
+
+					foreach(int j in GetNeighbors(planet.Edges[index, i], level - 1))
+						yield return j;
+				}
 			}
 		}
 
@@ -53,7 +72,7 @@ namespace ProceduralCities
 				int currentIdx = current.item2;
 
 				// Update distances
-				foreach (int j in GetNeighbors(currentIdx))
+				foreach (int j in GetNeighbors(currentIdx, 2))
 				{
 					if (Nodes[j].visited)
 						continue;

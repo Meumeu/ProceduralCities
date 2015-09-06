@@ -2,6 +2,7 @@
 
 namespace ProceduralCities
 {
+	[Serializable]
 	public struct Coordinates
 	{
 		public readonly double x, y, z, Latitude, Longitude;
@@ -26,7 +27,7 @@ namespace ProceduralCities
 			this.Longitude = longitude;
 			x = Math.Cos(longitude) * Math.Cos(latitude);
 			y = Math.Sin(latitude);
-			z = Math.Sin(longitude) * Math.Cos(longitude);
+			z = Math.Sin(longitude) * Math.Cos(latitude);
 		}
 
 		public override string ToString()

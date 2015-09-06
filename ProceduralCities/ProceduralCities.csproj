@@ -47,7 +47,18 @@
     <Compile Include="Utils.cs" />
     <Compile Include="KSPPlanet.cs" />
     <Compile Include="PlanetDatabase.cs" />
+    <Compile Include="WorldObject.cs" />
+    <Compile Include="MapOverlay.cs" />
+    <Compile Include="RoadOverlay.cs" />
+    <Compile Include="WorldObjects\RoadSegment.cs" />
   </ItemGroup>
   <Import Project="..\Common\Common.projitems" Label="Shared" Condition="Exists('..\Common\Common.projitems')" />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <Folder Include="WorldObjects\" />
+    <Folder Include="Resources\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\AlphaUnlitVertexColored.txt" />
+  </ItemGroup>
 </Project>

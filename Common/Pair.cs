@@ -4,6 +4,7 @@ using System.Collections.Generic;
 
 namespace ProceduralCities
 {
+	[Serializable]
 	public class Pair<T1, T2>: IComparable<Pair<T1, T2>> where T1: IComparable<T1> where T2: IComparable<T2>
 	{
 		public readonly T1 item1;

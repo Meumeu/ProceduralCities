@@ -8,10 +8,8 @@ namespace ProceduralCities
 	[KSPScenario(ScenarioCreationOptions.AddToAllGames, GameScenes.SPACECENTER, GameScenes.FLIGHT, GameScenes.TRACKSTATION)]
 	public class ProceduralCities : ScenarioModule
 	{
-		Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
-		
-		//[KSPField(isPersistant = true)]
-		public bool initialized = false;
+		[KSPField(isPersistant = true)]
+		public int Seed;
 
 		static ApplicationLauncherButton toolbarButton;
 		static Texture2D inactiveTexture;
@@ -25,12 +23,6 @@ namespace ProceduralCities
 		{
 			GameEvents.onGUIApplicationLauncherReady.Add(AddButton);
 			AddButton();
-		}
-
-		public override void OnAwake()
-		{
-			base.OnAwake();
-			Debug.Log("[ProceduralCities] OnAwake");
 		}
 
 		public void OnDestroy()
@@ -83,14 +75,8 @@ namespace ProceduralCities
 			string planet = FlightGlobals.currentMainBody.name;
 			GUILayout.Label("Current planet: " + planet);
 
-			KSPPlanet p = null;
-			lock (InhabitedBodies)
-			{
-				if (InhabitedBodies.ContainsKey(planet))
-				{
-					p = InhabitedBodies[planet];
-				}
-			}
+			KSPPlanet p = PlanetDatabase.GetPlanet(planet);
+
 			if (p != null)
 			{
 //				if (lastComputedMap)
@@ -102,10 +88,10 @@ namespace ProceduralCities
 //					});
 //				}
 
-				if (GUILayout.Button("Export maps"))
+				/*if (GUILayout.Button("Export maps"))
 				{
 					p.ExportData(2048, 1024);
-				}
+				}*/
 			}
 			else
 			{
@@ -122,13 +108,18 @@ namespace ProceduralCities
 
 		public override void OnLoad(ConfigNode node)
 		{
-			if (!initialized)
+
+			if (PlanetDatabase.Loaded) // PlanetDatabase is already loaded, don't rebuild everything
 			{
-				PlanetDatabase.Instance.Initialize();
-				initialized = true;
+				Debug.Log("[ProceduralCities] Planet database is already loaded");
 			}
 			else
 			{
+				if (Seed == 0) // First run for this save
+					Seed = 12345; // TODO: random value
+
+				new PlanetDatabase();
+				PlanetDatabase.Instance.Seed = Seed;
 				PlanetDatabase.Instance.Load(node);
 			}
 		}
