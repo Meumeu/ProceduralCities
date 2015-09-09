@@ -141,17 +141,17 @@ namespace ProceduralCities
 
 					for(int i = 0, n = p.Vertices.Count; i < n; i++)
 					{
-						double x = (p.Vertices[i].coord.Longitude + Math.PI) * w / (2 * Math.PI);
-						double y = (-p.Vertices[i].coord.Latitude + Math.PI / 2) * h / Math.PI;
+//						double x = (p.Vertices[i].coord.Longitude + Math.PI) * w / (2 * Math.PI);
+//						double y = (-p.Vertices[i].coord.Latitude + Math.PI / 2) * h / Math.PI;
 
-						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
-						ctx.Fill();
+//						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
+//						ctx.Fill();
 
-						if (p.PathToNearestCity.Nodes[i].visited)
-						{
-							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].next];
-							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h, true);
-						}
+//						if (p.PathToNearestCity.Nodes[i].visited)
+//						{
+//							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].next];
+//							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h, true);
+//						}
 //
 //						if (p.PathToOcean.Nodes[i].visited)
 //						{

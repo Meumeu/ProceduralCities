@@ -23,6 +23,12 @@ namespace ProceduralCities
 
 		public Coordinates(double latitude, double longitude)
 		{
+			while (longitude > Math.PI)
+				longitude -= 2 * Math.PI;
+
+			while (longitude < -Math.PI)
+				longitude += 2 * Math.PI;
+
 			this.Latitude = latitude;
 			this.Longitude = longitude;
 			x = Math.Cos(longitude) * Math.Cos(latitude);

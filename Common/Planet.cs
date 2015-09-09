@@ -16,7 +16,8 @@ namespace ProceduralCities
 			public double TerrainHeight;
 
 			// City generation stuff
-			public double score;
+			public double Score;
+			public int NearestCity;
 
 			public Vertex(Coordinates c)
 			{
@@ -54,6 +55,7 @@ namespace ProceduralCities
 
 		public List<Vertex> Vertices;
 		public int[,] Edges;
+		public double[,] EdgeCost;
 
 		public List<Biome> Biomes;
 		public List<City> Cities;
@@ -65,13 +67,27 @@ namespace ProceduralCities
 		{
 			if (!Built)
 			{
+				var watch = System.Diagnostics.Stopwatch.StartNew();
+
 				Log("Initializigng PRNG with seed " + Seed);
 				PRNG = new System.Random(Seed);
 
 				Log("Building icosphere");
-				Icosphere sphere = new Icosphere(6);
+				Icosphere sphere = new Icosphere(8);
 				Vertices = sphere.Vertices;
+				//Edges = ExpandEdges(sphere.Edges);
 				Edges = sphere.Edges;
+
+				double dist = 0;
+				int nbEdges = 0;
+				foreach (var i in AllEdges())
+				{
+					dist += Coordinates.Distance(Vertices[i.item1].coord, Vertices[i.item2].coord);
+					nbEdges++;
+				}
+
+				Log(string.Format("{0} edges, average length: {1:F2} km, total length: {2:F2} km", nbEdges / 2, dist * Radius() / nbEdges / 1000, dist * Radius() / 2 / 1000));
+
 
 				Log("Computing terrain and biome");
 				FillTerrainAndBiome();
@@ -83,17 +99,30 @@ namespace ProceduralCities
 				BuildCities();
 
 				Log("Computing zones of influence");
-				PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
+				BuildZonesOfInfluence();
 
 				Log("Computing major roads");
 				BuildRoads();
 
 				Built = true;
 				BuildFinished(fromCache: false);
+				Log(string.Format("{0} vertices, elapsed: {1}", Vertices.Count, watch.Elapsed));
 			}
 			else
 			{
 				BuildFinished(fromCache: true);
+			}
+		}
+
+		IEnumerable<Pair<int, int>> AllEdges()
+		{
+			for(int i = 0, n = Edges.GetLength(0); i < n; i++)
+			{
+				for (int j = 0, m = Edges.GetLength(1); j < m && Edges[i, j] >= 0; j++)
+				{
+					if (i < Edges[i, j])
+						yield return new Pair<int, int>(i, Edges[i, j]);
+				}
 			}
 		}
 
@@ -107,9 +136,9 @@ namespace ProceduralCities
 				if (Vertices[i].TerrainHeight < 0)
 					continue;
 
-				Vertices[i].score = Biomes[Vertices[i].Biome].Desirability;
+				Vertices[i].Score = Biomes[Vertices[i].Biome].Desirability;
 
-				sumScores += Vertices[i].score;
+				sumScores += Vertices[i].Score;
 				potentialCities.Add(i);
 			}
 
@@ -121,9 +150,9 @@ namespace ProceduralCities
 				{
 					double r = PRNG.NextDouble() * sumScores;
 					j = 0;
-					while (r > Vertices[potentialCities[j]].score)
+					while (r > Vertices[potentialCities[j]].Score)
 					{
-						r -= Vertices[potentialCities[j++]].score;
+						r -= Vertices[potentialCities[j++]].Score;
 					}
 				} while (Cities.Any(x => x.Position == potentialCities[j]));
 
@@ -135,38 +164,46 @@ namespace ProceduralCities
 		}
 		#endregion
 
-		#region Build major roads
-		void BuildRoads()
+		#region Compute zones of influence
+		void BuildZonesOfInfluence()
 		{
-			// Compute zone of influence
-			int[] nearestCity = new int[Vertices.Count];
+			PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
+
 			for (int i = 0, n = Vertices.Count; i < n; i++)
 			{
 				if (PathToNearestCity.Nodes[i].visited)
-					nearestCity[i] = PathToNearestCity.GetPath(i).Last();
+					Vertices[i].NearestCity = PathToNearestCity.GetPath(i).Last();
 				else
-					nearestCity[i] = -1;
+					Vertices[i].NearestCity = -1;
 			}
+		}
+		#endregion
 
-			// Find neighbor cities
-			HashSet<Pair<int, int>> neighborCities = new HashSet<Pair<int, int>>();
-			for (int i = 0, n = Vertices.Count; i < n; i++)
+		#region Find neighbors
+		HashSet<Pair<int, int>> NeighborCities()
+		{
+			HashSet<Pair<int, int>> ret = new HashSet<Pair<int, int>>();
+			foreach (var i in AllEdges())
 			{
-				for (int j = 0; j < 6 && Edges[i, j] != -1; j++)
-				{
-					int k = Edges[i, j];
-					if (nearestCity[i] == nearestCity[k])
-						continue;
+				if (Vertices[i.item1].NearestCity == Vertices[i.item2].NearestCity)
+					continue;
 
-					if (nearestCity[i] == -1 || nearestCity[k] == -1)
-						continue;
+				if (Vertices[i.item1].NearestCity == -1 || Vertices[i.item2].NearestCity == -1)
+					continue;
 
-					if (k > i)
-						continue;
-
-					neighborCities.Add(new Pair<int, int>(nearestCity[i], nearestCity[k]));
-				}
+				int min = Math.Min(Vertices[i.item1].NearestCity, Vertices[i.item2].NearestCity);
+				int max = Math.Max(Vertices[i.item1].NearestCity, Vertices[i.item2].NearestCity);
+				ret.Add(new Pair<int, int>(min, max));
 			}
+
+			return ret;
+		}
+		#endregion
+
+		#region Build major roads
+		void BuildRoads()
+		{
+			HashSet<Pair<int, int>> neighborCities = NeighborCities();
 
 			// Make roads
 			var roadSegments = new Dictionary<int, List<int>>();
@@ -175,7 +212,7 @@ namespace ProceduralCities
 				Pathfinding path = new Pathfinding(this, i.item1, i.item2);
 				List<int> points = path.GetPath(i.item2).ToList();
 
-				if (points.All(x => nearestCity[x] == i.item1 || nearestCity[x] == i.item2))
+				if (points.All(x => Vertices[x].NearestCity == i.item1 || Vertices[x].NearestCity == i.item2))
 				{
 					for (int j = 1, n = points.Count; j < n; j++)
 					{
@@ -206,6 +243,9 @@ namespace ProceduralCities
 			{
 				foreach (int j in roadSegments[i])
 				{
+					if (Roads.Any(road => road.Positions[road.Positions.Count - 1] == i && road.Positions[road.Positions.Count - 2] == j))
+						continue;
+
 					Road r = new Road();
 
 					r.Positions.Add(i);
@@ -218,10 +258,7 @@ namespace ProceduralCities
 					}
 					r.Positions.Add(k);
 
-					foreach(int l in r.Positions)
-					{
-						System.Diagnostics.Debug.Assert(r.Positions.Count(x => x == l) == 1);
-					}
+					System.Diagnostics.Debug.Assert(r.Positions.All(x => r.Positions.Count(y => x == y) == 1));
 
 					Roads.Add(r);
 				}
@@ -241,10 +278,59 @@ namespace ProceduralCities
 				Vertices[i].TerrainHeight = data[i].item1;
 				Vertices[i].Biome = data[i].item2;
 			}
+
+			int nbSamples = 10;
+
+			coords.Clear();
+			var edges = AllEdges().Where(j => Vertices[j.item1].TerrainHeight > 0 && Vertices[j.item2].TerrainHeight > 0).ToList();
+
+			foreach (var i in edges)
+			{
+				var v1 = Vertices[i.item1].coord;
+				var v2 = Vertices[i.item2].coord;
+
+				coords.AddRange(Enumerable.Range(0, nbSamples).Select(j => new Coordinates(
+					v1.x * j + v2.x * (nbSamples - 1 - j),
+					v1.y * j + v2.y * (nbSamples - 1 - j),
+					v1.z * j + v2.z * (nbSamples - 1 - j))));
+			}
+
+			var terrain = GetTerrain(coords);
+
+			EdgeCost = new double[Edges.GetLength(0), Edges.GetLength(1)];
+
+			for (int i = 0, n = edges.Count; i < n; i++)
+			{
+				double cost = 0;
+				for (int j = 1; j < nbSamples; j++)
+				{
+					cost += Math.Abs(terrain[i * nbSamples + j] - terrain[i * nbSamples + j - 1]);
+				}
+				cost /= nbSamples;
+
+				for (int j = 0, m = Edges.GetLength(1); j < m; j++)
+				{
+					if (Edges[edges[i].item1, j] == edges[i].item2)
+						EdgeCost[edges[i].item1, j] = cost;
+					if (Edges[edges[i].item2, j] == edges[i].item1)
+						EdgeCost[edges[i].item2, j] = cost;
+				}
+			}
 		}
 
 		#region To be implemented by derived classes
 		protected abstract List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords);
+		protected virtual List<double> GetTerrain(List<Coordinates> coords)
+		{
+			return GetTerrainAndBiome(coords).Select(x => x.item1).ToList();
+		}
+
+		protected virtual List<int> GetBiome(List<Coordinates> coords)
+		{
+			return GetTerrainAndBiome(coords).Select(x => x.item2).ToList();
+		}
+
+		public abstract double Radius();
 		protected abstract void Log(string message);
 		protected virtual void BuildFinished(bool fromCache) {}
 		#endregion

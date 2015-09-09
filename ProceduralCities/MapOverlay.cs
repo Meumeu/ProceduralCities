@@ -62,8 +62,8 @@ namespace ProceduralCities
 
 			renderer.material = material;
 
-			GameEvents.OnMapEntered.Add(OnMapVisibility);
-			GameEvents.OnMapExited.Add(OnMapVisibility);
+			GameEvents.OnMapEntered.Add(OnMapEntered);
+			GameEvents.OnMapExited.Add(OnMapExited);
 			GameEvents.onLevelWasLoaded.Add(OnLevelWasLoaded);
 
 			OnMapVisibility();
@@ -74,13 +74,35 @@ namespace ProceduralCities
 			OnMapVisibility();
 		}
 
+		void OnMapEntered()
+		{
+			try
+			{
+				meshRenderer.enabled = _Visible;
+			}
+			catch
+			{
+			}
+		}
+
+		void OnMapExited()
+		{
+			try
+			{
+				meshRenderer.enabled = false;
+			}
+			catch
+			{
+			}
+		}
+
 		void OnMapVisibility()
 		{
 			try
 			{
 				meshRenderer.enabled = Visible && HighLogic.LoadedSceneHasPlanetarium && MapView.MapIsEnabled;
 			}
-			catch(Exception)
+			catch
 			{
 			}
 		}

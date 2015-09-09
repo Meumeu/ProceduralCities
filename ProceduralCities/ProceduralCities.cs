@@ -101,9 +101,23 @@ namespace ProceduralCities
 			GUI.DragWindow();
 		}
 
+		/*public void Start()
+		{
+			Debug.Log("[ProceduralCities] ProceduralCities.Start");
+		}
+
+		public void Awake()
+		{
+			Debug.Log("[ProceduralCities] ProceduralCities.Awake");
+		}*/
+
 		public void Update()
 		{
 			PlanetDatabase.Instance.Update();
+		}
+
+		public void FixedUpdate()
+		{
 		}
 
 		public override void OnLoad(ConfigNode node)

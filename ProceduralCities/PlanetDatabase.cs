@@ -16,7 +16,7 @@ namespace ProceduralCities
 		GameScenes CurrentScene;
 
 		Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
-		List<WorldObject> WorldObjects = new List<WorldObject>();
+		internal List<WorldObject> WorldObjects = new List<WorldObject>();
 
 		Thread Worker;
 		Queue<Action> MainThreadQueue = new Queue<Action>();
@@ -45,6 +45,15 @@ namespace ProceduralCities
 			}
 		}
 
+		Thread MainThread;
+		public bool IsMainThread
+		{
+			get
+			{
+				return Thread.CurrentThread.Equals(MainThread);
+			}
+		}
+
 		public readonly string CacheDirectory;
 
 		public PlanetDatabase()
@@ -53,9 +62,12 @@ namespace ProceduralCities
 				throw new InvalidOperationException("PlanetDatabase singleton already exists");
 
 			_instance = this;
+
 			CacheDirectory = Path.GetFullPath(KSPUtil.ApplicationRootPath + "saves/" + HighLogic.SaveFolder + "/ProceduralCities");
 			if (!Directory.Exists(CacheDirectory))
 				Directory.CreateDirectory(CacheDirectory);
+
+			MainThread = Thread.CurrentThread;
 
 			GameEvents.onLevelWasLoaded.Add(onLevelWasLoaded);
 			StartWorker();
@@ -84,20 +96,23 @@ namespace ProceduralCities
 			}
 		}
 
-		public static void AddWorldObject(WorldObject wo)
+		public void AddWorldObject(WorldObject wo)
 		{
+			System.Diagnostics.Debug.Assert(IsMainThread);
 			Instance.WorldObjects.Add(wo);
 		}
 
 		// InhabitedBodies must be locked
 		static void AddPlanet(KSPPlanet planet)
 		{
+			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			Instance.InhabitedBodies.Add(planet.Name, planet);
 			QueueToWorker(new RequestPlanetAdded(planet.Name));
 		}
 
 		public static KSPPlanet GetPlanet(string name)
 		{
+			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			KSPPlanet ret = null;
 			lock (Instance.InhabitedBodies)
 			{
@@ -108,6 +123,7 @@ namespace ProceduralCities
 
 		static KSPPlanet LoadFromCache(CelestialBody body)
 		{
+			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			string filename = PlanetDatabase.Instance.CacheDirectory + "/" + body.name + ".cache";
 
 			try
@@ -115,7 +131,10 @@ namespace ProceduralCities
 				using (Stream stream = new FileStream(filename, FileMode.Open, FileAccess.Read))
 				{
 					var br = new BinaryReader(stream);
-					if (br.ReadString() == typeof(PlanetDatabase).Assembly.GetName().Version.ToString())
+					var fileVersion = br.ReadString();
+					var version = typeof(PlanetDatabase).Assembly.GetName().Version.ToString();
+
+					if (fileVersion == version)
 					{
 						IFormatter formatter = new BinaryFormatter();
 						var planet = (KSPPlanet)formatter.Deserialize(stream);
@@ -124,14 +143,13 @@ namespace ProceduralCities
 					}
 					else
 					{
-						Debug.Log("[ProceduralCities] Cannot load " + body.name + " from cache: wrong version");
+						Debug.Log(string.Format("[ProceduralCities] Cannot load {0} from cache: incompatible version ({1} instead of {2})", body.name, fileVersion, version));
 					}
 				}
 			}
 			catch(Exception e)
 			{
-				Debug.Log("[ProceduralCities] Cannot load " + body.name + " from cache");
-				Debug.LogException(e);
+				Debug.Log(string.Format("[ProceduralCities] Cannot load {0} from cache: {1}", body.name, e.Message));
 			}
 
 			return null;
@@ -247,6 +265,7 @@ namespace ProceduralCities
 
 		static public void Log(string message)
 		{
+			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
 			QueueToMainThread(() =>
 			{
 				Debug.Log("[ProceduralCities] " + message.Replace("\n", "\n[ProceduralCities] "));
@@ -255,6 +274,7 @@ namespace ProceduralCities
 
 		static public void LogException(Exception e)
 		{
+			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
 			QueueToMainThread(() =>
 			{
 				Debug.LogException(e);
@@ -263,6 +283,7 @@ namespace ProceduralCities
 
 		void DoWork_PlanetAdded(RequestPlanetAdded req)
 		{
+			System.Diagnostics.Debug.Assert(!IsMainThread);
 			KSPPlanet planet;
 			lock (InhabitedBodies)
 			{
@@ -277,6 +298,7 @@ namespace ProceduralCities
 
 		void DoWork_PositionChanged(RequestPositionChanged req)
 		{
+			System.Diagnostics.Debug.Assert(!IsMainThread);
 			KSPPlanet planet = null;
 			lock (InhabitedBodies)
 			{
@@ -341,6 +363,7 @@ namespace ProceduralCities
 
 		static void QueueToWorker(Request req)
 		{
+			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			Monitor.Enter(Instance.WorkerQueue);
 			try
 			{
@@ -355,10 +378,9 @@ namespace ProceduralCities
 
 		static void DequeueFromWorker(int timeout = int.MaxValue)
 		{
+			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			lock (Instance.MainThreadQueue)
 			{
-				//if (Instance.MainThreadQueue.Count > 0)
-				//	Debug.Log(string.Format("[ProceduralCities] {0} actions remaining", Instance.MainThreadQueue.Count));
 				var watch = System.Diagnostics.Stopwatch.StartNew();
 
 				while (Instance.MainThreadQueue.Count > 0 && watch.ElapsedMilliseconds < timeout)
@@ -374,17 +396,65 @@ namespace ProceduralCities
 						Debug.LogException(e);
 					}
 				}
-
-				//if (Instance.MainThreadQueue.Count > 0)
-				//	Debug.Log(string.Format("[ProceduralCities] {0} actions remaining after {1} ms", Instance.MainThreadQueue.Count, watch.ElapsedMilliseconds));
 			}
 		}
 
 		public static void QueueToMainThread(Action act)
 		{
+			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
 			lock (Instance.MainThreadQueue)
 			{
 				Instance.MainThreadQueue.Enqueue(act);
+			}
+		}
+
+		public static void QueueToMainThreadSync(Action act)
+		{
+			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
+			object monitor = new object();
+			bool finished = false;
+			bool error = false;
+
+			lock(Instance.MainThreadQueue)
+			{
+				Instance.MainThreadQueue.Enqueue(() =>
+				{
+					try
+					{
+						act();
+					}
+					catch(Exception)
+					{
+						Monitor.Enter(monitor);
+						error = true;
+						Monitor.Pulse(monitor);
+						Monitor.Exit(monitor);
+						throw;
+					}
+					finally
+					{
+						Monitor.Enter(monitor);
+						finished = true;
+						Monitor.Pulse(monitor);
+						Monitor.Exit(monitor);
+					}
+				});
+			}
+
+			Monitor.Enter(monitor);
+			try
+			{
+				while (!finished && !error)
+					Monitor.Wait(monitor);
+			}
+			finally
+			{
+				Monitor.Exit(monitor);
+			}
+
+			if (error)
+			{
+				// TODO
 			}
 		}
 
@@ -400,7 +470,7 @@ namespace ProceduralCities
 		{
 			Debug.Log("[ProceduralCities] Stopping worker thread");
 			System.Diagnostics.Debug.Assert(Worker != null);
-
+			System.Diagnostics.Debug.Assert(!IsMainThread);
 
 			Monitor.Enter(WorkerQueue);
 			try
@@ -448,6 +518,7 @@ namespace ProceduralCities
 			return null;
 		}
 
+		int lastNbVisible = -1;
 		public void Update()
 		{
 			CelestialBody current_planet = (CurrentScene == GameScenes.SPACECENTER || CurrentScene == GameScenes.FLIGHT) ? FlightGlobals.currentMainBody : null;
@@ -474,9 +545,16 @@ namespace ProceduralCities
 
 				lock (WorldObjects)
 				{
+					int nbVisible = 0;
 					for (int i = 0; i < WorldObjects.Count;)
 					{
-						if (WorldObjects[i].Planet != current_planet.name || Coordinates.Distance(WorldObjects[i].Position, coord) * current_planet.Radius > WorldObjects[i].UnloadDistance)
+						double distance = Coordinates.Distance(WorldObjects[i].Position, coord) * current_planet.Radius;
+						bool visible = distance < WorldObjects[i].VisibleDistance && WorldObjects[i].Planet == current_planet.name ;
+						WorldObjects[i].visible = visible;
+						if (visible)
+							nbVisible++;
+
+						if (WorldObjects[i].Planet != current_planet.name || distance > WorldObjects[i].UnloadDistance)
 						{
 							WorldObject tmp = WorldObjects[i];
 							WorldObjects[i] = WorldObjects[WorldObjects.Count - 1];
@@ -487,6 +565,12 @@ namespace ProceduralCities
 						{
 							i++;
 						}
+					}
+
+					if (nbVisible != lastNbVisible)
+					{
+						Debug.Log("[ProceduralCities] Number of visible objects: " + nbVisible);
+						lastNbVisible = nbVisible;
 					}
 				}
 			}

@@ -155,6 +155,11 @@ namespace ProceduralCities
 				GetBiomeId(x.Latitude, x.Longitude))).ToList();
 		}
 
+		public override double Radius()
+		{
+			return 600000;
+		}
+
 		protected override void Log(string message)
 		{
 			Console.WriteLine(message);

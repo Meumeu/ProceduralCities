@@ -1,7 +1,7 @@
 KSPDIR  ?= ${HOME}/.local/share/Steam/SteamApps/common/Kerbal\ Space\ Program
 MANAGED := ${KSPDIR}/KSP_Data/Managed/
 
-SOURCEFILES := $(wildcard ProceduralCities/*.cs) $(wildcard Common/*.cs)
+SOURCEFILES := $(wildcard ProceduralCities/*.cs) $(wildcard Common/*.cs) $(wildcard ProceduralCities/WorldObjects/*.cs)
 
 RESGEN2 := resgen2
 GMCS    ?= mcs
@@ -40,7 +40,7 @@ build/%.dll: ${SOURCEFILES}
 
 package: build/ProceduralCities.dll
 	mkdir -p package/ProceduralCities
-#	cp ProceduralCities/img/* package/ProceduralCities/
+	cp -r Assets package/ProceduralCities/
 #	cp -r SampleWebUI/* package/ProceduralCities/www/
 	cp $< package/ProceduralCities/
 

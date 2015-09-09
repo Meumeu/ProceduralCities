@@ -33,7 +33,7 @@ namespace ProceduralCities
 				{
 					Vector3 n1 = Vector3.Cross(positions[i - 1] + positions[i], positions[i - 1] - positions[i]).normalized;
 					Vector3 n2 = Vector3.Cross(positions[i] + positions[i + 1], positions[i] - positions[i + 1]).normalized;
-					normal.Add((n1+n2).normalized);
+					normal.Add((n1 + n2).normalized);
 				}
 
 				normal.Add(Vector3.Cross(positions[n - 2] + positions[n - 1], positions[n - 2] - positions[n - 1]).normalized);
@@ -69,6 +69,7 @@ namespace ProceduralCities
 
 		public void UpdateMesh()
 		{
+			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			List<Vector3> vertices = new List<Vector3>();
 			List<int> triangles = new List<int>();
 			List<Color32> colors = new List<Color32>();
@@ -92,7 +93,8 @@ namespace ProceduralCities
 					{
 						triangles.AddRange(new[] {
 							index0 + 2 * j + 0, index0 + 2 * j + 1, index0 + 2 * j + 2,
-							index0 + 2 * j + 1, index0 + 2 * j + 3, index0 + 2 * j + 2 });
+							index0 + 2 * j + 1, index0 + 2 * j + 3, index0 + 2 * j + 2
+						});
 					}
 				}
 			}

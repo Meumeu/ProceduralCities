@@ -32,12 +32,14 @@ namespace ProceduralCities
 		[OnDeserializing]
 		private void OnDeserializing(StreamingContext context)
 		{
+			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			Debug.Log("[ProceduralCities] Deserializing KSPPlanet");
 			watch = System.Diagnostics.Stopwatch.StartNew();
 		}
 
 		public KSPPlanet(CelestialBody body)
 		{
+			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			Debug.Log("[ProceduralCities] Constructing KSPPlanet");
 			watch = System.Diagnostics.Stopwatch.StartNew();
 			Init(body);
@@ -45,6 +47,7 @@ namespace ProceduralCities
 
 		public void Init(CelestialBody body)
 		{
+			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			Body = body;
 			roadOverlay = new GameObject();
 			var ro = roadOverlay.AddComponent<RoadOverlay>();
@@ -194,7 +197,8 @@ namespace ProceduralCities
 
 		protected override void BuildFinished(bool fromCache)
 		{
-			Log("Planet built, building road overlay");
+			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
+			Log("Building road map overlay and roads");
 			var ro = roadOverlay.GetComponent<RoadOverlay>();
 
 			Color[] palette = new[] { Color.blue, Color.green, Color.red, Color.cyan, Color.magenta, Color.yellow };
@@ -202,14 +206,18 @@ namespace ProceduralCities
 			int n = 0;
 			foreach (var i in Roads)
 			{
-				//Color32 c = Color.Lerp(palette[n % palette.Length], Color.gray, (float)Math.Floor((double)n / palette.Length) * 0.1f);
 				Color32 c = palette[n % palette.Length];
 				n++;
 
 				ro.Add(i.Positions.Select(x => Vertices[x].coord), new Color32(c.r, c.g, c.b, 128));
+
+				RoadSegment.MakeSegments(Body, i.Positions.Select(x => Vertices[x].coord).ToList());
 			}
 
 			PlanetDatabase.QueueToMainThread(() => ro.UpdateMesh());
+
+			PlanetDatabase.QueueToMainThreadSync(() => {});
+			Log(string.Format("{0} road segments created", PlanetDatabase.Instance.WorldObjects.Count));
 
 			Log("Planet built in " + watch.ElapsedMilliseconds + " ms");
 
@@ -230,7 +238,11 @@ namespace ProceduralCities
 
 		public void UpdatePosition(Coordinates coord)
 		{
-			PlanetDatabase.Log(string.Format("New position: {0}", coord));
+			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
+
+			Vector3d up = new Vector3d(coord.x, coord.y, coord.z);
+			Vector3d north = Vector3d.Exclude(up, new Vector3d(0, 1, 0)).normalized;
+			Vector3d east = Vector3d.Cross(north, up).normalized;
 
 			double radius = Body.Radius;
 			double closestDist = double.MaxValue;
@@ -248,76 +260,55 @@ namespace ProceduralCities
 						closestDist = Coordinates.Distance(v1.coord, coord);
 						closest = v1.coord;
 					}
-
-					if (Coordinates.Distance(v1.coord, coord) * radius < 2000)
-					{
-						Log("Creating road at " + v1);
-						RoadSegment r = new RoadSegment();
-
-						r.Planet = Body.name;
-						r.Position = v1.coord;
-						r.UnloadDistance = 3000;
-
-						// TODO: road stuff
-
-						PlanetDatabase.QueueToMainThread(() => PlanetDatabase.AddWorldObject(r));
-					}
 				}
 			}
-			Log(string.Format("Closest road at {0} ({1:F1} km)", closest, closestDist * radius / 1000));
+
+			Vector3d direction = new Vector3d(closest.x, closest.y, closest.z) - up;
+			double heading = Math.Atan2(Vector3d.Dot(direction, east), Vector3d.Dot(direction, north)) * 180 / Math.PI;
+			Log(string.Format("Closest road at {0} (ground distance: {1:F1} km, heading: {2:F1}°)", closest, closestDist * radius / 1000, heading));
 		}
 
 		#region Interface to Planet
 		protected override List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
 		{
+			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
 			List<Pair<double, int>> ret = new List<Pair<double, int>>(coords.Count);
-			bool finished = false;
 
-
-			PlanetDatabase.QueueToMainThread(() =>
+			PlanetDatabase.QueueToMainThreadSync(() =>
 			{
-				Monitor.Enter(ret);
-				try
+				foreach(Coordinates i in coords)
 				{
-					foreach(Coordinates i in coords)
-					{
-						double alt = Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(i.Latitude * 180 / Math.PI, i.Longitude * 180 / Math.PI)) - Body.Radius;
-						int biome = -1;
+					double alt = Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(i.Latitude * 180 / Math.PI, i.Longitude * 180 / Math.PI)) - Body.Radius;
+					int biome = -1;
 
-						if (Body.BiomeMap)
+					if (Body.BiomeMap)
+					{
+						var attr = Body.BiomeMap.GetAtt(i.Latitude, i.Longitude);
+						for (int j = 0, n = Body.BiomeMap.Attributes.Length; j < n; j++)
 						{
-							var attr = Body.BiomeMap.GetAtt(i.Latitude, i.Longitude);
-							for (int j = 0, n = Body.BiomeMap.Attributes.Length; j < n; j++)
+							if (attr == Body.BiomeMap.Attributes[j])
 							{
-								if (attr == Body.BiomeMap.Attributes[j])
-								{
-									biome = j;
-									break;
-								}
+								biome = j;
+								break;
 							}
 						}
-
-						ret.Add(new Pair<double, int>(alt, biome));
 					}
-					finished = true;
-					Monitor.Pulse(ret);
-				}
-				finally
-				{
-					Monitor.Exit(ret);
+
+					ret.Add(new Pair<double, int>(alt, biome));
 				}
 			});
-
-			Monitor.Enter(ret);
-			while(!finished)
-				Monitor.Wait(ret);
-			Monitor.Exit(ret);
 
 			return ret;
 		}
 
+		public override double Radius()
+		{
+			return Body.Radius;
+		}
+
 		protected override void Log(string message)
 		{
+			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
 			PlanetDatabase.Log(message);
 		}
 		#endregion

@@ -3,29 +3,53 @@ using UnityEngine;
 
 namespace ProceduralCities
 {
-	public class WorldObject
+	public abstract class WorldObject
 	{
 		public float UnloadDistance;
+		public float VisibleDistance;
 		public Coordinates Position;
 		public string Planet;
-
+		public CelestialBody Body;
 		protected GameObject gameObject;
-		protected MeshFilter meshFilter;
-		protected MeshRenderer meshRenderer;
-		protected Mesh mesh;
+		bool initialized;
+
+		public bool visible
+		{
+			get
+			{
+				if (gameObject == null)
+					return false;
+
+				var renderer = gameObject.GetComponent<MeshRenderer>();
+				if (renderer == null)
+					return false;
+
+				return renderer.enabled;
+			}
+			set
+			{
+				if (!initialized)
+				{
+					Initialize();
+					initialized = true;
+				}
+
+				System.Diagnostics.Debug.Assert(gameObject != null);
+				System.Diagnostics.Debug.Assert(gameObject.GetComponent<MeshRenderer>() != null);
+
+				if (gameObject.GetComponent<MeshRenderer>().enabled != value)
+				{
+					gameObject.GetComponent<MeshRenderer>().enabled = value;
+				}
+			}
+		}
 
 		public WorldObject()
 		{
-			gameObject = new GameObject();
-			meshFilter = gameObject.AddComponent<MeshFilter>();
-			meshRenderer = gameObject.AddComponent<MeshRenderer>();
-			mesh = meshFilter.mesh;
 		}
 
-		public void Destroy()
-		{
-			GameObject.Destroy(gameObject);
-		}
+		public abstract void Destroy();
+		protected abstract void Initialize();
 	}
 }
 

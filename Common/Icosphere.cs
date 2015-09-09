@@ -78,8 +78,6 @@ namespace ProceduralCities
 
 		public Icosphere(int level)
 		{
-			var watch = System.Diagnostics.Stopwatch.StartNew();
-
 			Vertices = new List<Planet.Vertex>();
 			Triangles = new List<Triangle>();
 
@@ -164,15 +162,6 @@ namespace ProceduralCities
 				AddEdge(i.c, i.a);
 			}
 
-			int nb_edges = 0;
-			for (int i = 0; i < Vertices.Count; i++)
-			{
-				for (int j = 0; j < 6; j++)
-					if (Edges[i, j] >= 0)
-						nb_edges++;
-			}
-
-			Console.WriteLine("{0} triangles, {1} vertices, {2} edges, elapsed: {3}", Triangles.Count, Vertices.Count, nb_edges / 2, watch.Elapsed);
 			Triangles = null;
 		}
 	}
