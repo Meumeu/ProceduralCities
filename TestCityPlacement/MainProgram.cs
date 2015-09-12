@@ -40,7 +40,7 @@ namespace ProceduralCities
 
 			int idx = (int)Math.Floor(Math.Max(0, Math.Min(alt / 300, 18)));
 
-			return LerpColor(alt - idx * 300, AltitudePalette[idx], AltitudePalette[idx + 1]);
+			return LerpColor((alt - idx * 300.0) / 300.0, AltitudePalette[idx], AltitudePalette[idx + 1]);
 		}
 
 		static ImageSurface CreateMap(out byte[] data, TestPlanet p, int width = 4096, int height = 2048)
@@ -132,7 +132,8 @@ namespace ProceduralCities
 			Console.WriteLine("Printing map");
 			//PrintMaps(p, "kerbin.png");
 
-			int w = 4096, h = 2048;
+			//int w = 4096, h = 2048;
+			int w = 8000, h = 4000;
 			byte[] data;
 			using (var surface = CreateMap(out data, p, w, h))
 			{
@@ -148,11 +149,11 @@ namespace ProceduralCities
 						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
 						ctx.Fill();
 
-//						if (p.PathToNearestCity.Nodes[i].visited)
-//						{
-//							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].next];
-//							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h, true);
-//						}
+						if (p.PathToNearestCity.Nodes[i].visited)
+						{
+							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].next];
+							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h, true);
+						}
 //
 //						if (p.PathToOcean.Nodes[i].visited)
 //						{
@@ -173,7 +174,9 @@ namespace ProceduralCities
 					foreach(var i in p.Roads)
 					{
 						Coordinates? last = null;
-						foreach (Coordinates j in i.Select(x => p.Vertices[x].coord))
+						//foreach (Coordinates j in i.Select(x => p.Vertices[x].coord))
+						var road = new Bezier(i.Select(x => p.Vertices[x].coord).ToList(), 600000);
+						foreach (Coordinates j in road.Rasterize(1000))
 						{
 							if (last.HasValue)
 								DrawEdge(ctx, last.Value, j, w, h, false);

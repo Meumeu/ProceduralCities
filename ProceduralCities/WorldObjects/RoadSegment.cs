@@ -131,30 +131,17 @@ namespace ProceduralCities
 
 			double radius = body.Radius;
 			double triangleLength = width;
-			List<Vector3d> positions = road.Select(u => new Vector3d(u.x, u.y, u.z) * radius).ToList();
-
-			// Compute the positions of every point on the road
-			List<Vector3d> positions2 = new List<Vector3d>();
-			for (int i = 1, n = positions.Count; i < n; i++)
-			{
-				double L = (positions[i] - positions[i - 1]).magnitude;
-				int nbTriangles = (int)Math.Ceiling(L / triangleLength);
-				for (int j = 0; j < nbTriangles; j++)
-				{
-					positions2.Add((positions[i] * j + positions[i - 1] * (nbTriangles - j)).normalized * radius);
-				}
-			}
-			positions2.Add(positions[positions.Count - 1]);
+			List<Vector3d> positions = road.Rasterize(triangleLength).Select(u => new Vector3d(u.x, u.y, u.z) * radius).ToList();
 
 			// Compute the normal to every point
-			List<Vector3d> normal = ComputeNormals(positions2);
+			List<Vector3d> normal = ComputeNormals(positions);
 
 			// Split into segments
 			int currentStart = 0;
 			double currentLength = 0;
-			for (int i = 1, n = positions2.Count; i < n; i++)
+			for (int i = 1, n = positions.Count; i < n; i++)
 			{
-				currentLength += (positions2[i] - positions2[i - 1]).magnitude;
+				currentLength += (positions[i] - positions[i - 1]).magnitude;
 				if (currentLength > segmentLength)
 				{
 					int start = currentStart;
@@ -164,7 +151,7 @@ namespace ProceduralCities
 						PlanetDatabase.Instance.AddWorldObject(
 							new RoadSegment(
 								body,
-								positions2.GetRange(start, count),
+								positions.GetRange(start, count),
 								normal.GetRange(start, count),
 								width));
 					});
@@ -178,8 +165,8 @@ namespace ProceduralCities
 			{
 				PlanetDatabase.Instance.AddWorldObject(new RoadSegment(
 					body,
-					positions2.GetRange(currentStart, positions2.Count - currentStart),
-					normal.GetRange(currentStart, positions2.Count - currentStart),
+					positions.GetRange(currentStart, positions.Count - currentStart),
+					normal.GetRange(currentStart, positions.Count - currentStart),
 					width));
 			});
 		}

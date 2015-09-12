@@ -107,20 +107,12 @@ namespace ProceduralCities
 			return Coordinates.Distance(planet.Vertices[node1].coord, planet.Vertices[node2].coord) * radius + EdgeCost(node1, node2) * TerrainCost;
 		}
 
-		public static Int64 stat_openSetSizeSum = 0;
-		public static Int64 stat_openSetSize_nb = 0;
-		public static Int64 stat_openSetSizeMax = 0;
-		public static Int64 stat_insertionCount = 0;
-		public static Int64 stat_insertionAtBeginning = 0;
 		public static Int64 stat_nbAstar = 0;
 		public static Int64 stat_timeAstar = 0;
 
 		public static void PrintStats()
 		{
-			Console.WriteLine("Average open set size: " + (((double)stat_openSetSizeSum) / ((double)stat_openSetSize_nb)));
 			Console.WriteLine("Average time: " + (((double)stat_timeAstar) / ((double)stat_nbAstar)));
-			Console.WriteLine("Max openset size: " + stat_openSetSizeMax);
-			Console.WriteLine("Insertions at beginning: " + stat_insertionAtBeginning + " / " + stat_insertionCount);
 		}
 
 		void AStar(int target, int origin, double TerrainCost)

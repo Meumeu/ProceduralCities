@@ -5,100 +5,74 @@ using System.Collections.Generic;
 
 namespace ProceduralCities
 {
-	public class Bezier : IEnumerable<Coordinates>
+	public class Bezier
 	{
-		struct Patch
+		List<Coordinates> coord;
+		double radius;
+		double length;
+
+		double fact(int n)
 		{
-			public readonly Coordinates c1;
-			public readonly Coordinates c2;
-			public readonly Coordinates c3;
-			public readonly Coordinates c4;
+			double ret = 1;
+			for (int i = 2; i < n; i++)
+				ret *= i;
 
-			public Coordinates Eval(double t)
-			{
-				double t1 = (1 - t) * (1 - t) * (1 - t);
-				double t2 = 3 * (1 - t) * (1 - t) * t;
-				double t3 = 3 * (1 - t) * t * t;
-				double t4 = t * t * t;
-
-				return new Coordinates(
-					t1 * c1.x + t2 * c2.x + t3 * c3.x + t4 * c4.x,
-					t1 * c1.y + t2 * c2.y + t3 * c3.y + t4 * c4.y,
-					t1 * c1.z + t2 * c2.z + t3 * c3.z + t4 * c4.z
-				);
-			}
-
-			public Patch(Coordinates c1, Coordinates c2, Coordinates c3, Coordinates c4)
-			{
-				this.c1 = c1;
-				this.c2 = c2;
-				this.c3 = c3;
-				this.c4 = c4;
-			}
+			return ret;
 		}
 
-		List<Patch> patches;
+		double Cnp(int n, int p)
+		{
+			return fact(n) / (fact(p) * fact(n - p));
+		}
 
-		public Bezier(List<Coordinates> coordinates)
+		public Bezier(List<Coordinates> coordinates, double radius)
 		{
 			if (coordinates.Count < 2)
 				throw new ArgumentException("At least two coordinates are required", "coordinates");
 
-			patches = new List<Patch>(coordinates.Count - 1);
-			List<Coordinates> controlPoints = new List<Coordinates>(patches.Count * 2);
+			coord = coordinates;
+			this.radius = radius;
+			length = 0;
 
-			// create additional control points
-			controlPoints.Add(Coordinates.LinearCombination(0.5, coordinates[0], 0.5, coordinates[1]));
-			for (int i = 1, n = coordinates.Count - 1; i < n; i++)
+			for (int i = 1, n = coord.Count; i < n; i++)
 			{
-				controlPoints.Add(Coordinates.LinearCombination(0.25, coordinates[i - 1], -0.25, coordinates[i + 1], 1, coordinates[i]));
-				controlPoints.Add(Coordinates.LinearCombination(0.25, coordinates[i + 1], -0.25, coordinates[i - 1], 1, coordinates[i]));
-			}
-			controlPoints.Add(Coordinates.LinearCombination(0.5, coordinates[coordinates.Count - 2], 0.5, coordinates[coordinates.Count - 1]));
-
-			// create patches
-			for (int i = 0, n = coordinates.Count - 1; i < n; i++)
-			{
-				patches.Add(new Patch(coordinates[i], controlPoints[2 * i], controlPoints[2 * i + 1], coordinates[i + 1]));
+				length += Coordinates.Distance(coord[i - 1], coord[i]);
 			}
 		}
 
 		public Coordinates Eval(double t)
 		{
-			int index = (int)Math.Floor(t);
-			if (index < 0)
-				return patches[0].c1;
-			else if (index >= patches.Count)
-				return patches.Last().c4;
+			if (t < 0)
+				t = 0;
+			else if (t > 1)
+				t = 1;
 
-			return patches[index].Eval(t - Math.Floor(t));
-		}
+			double x = 0;
+			double y = 0;
+			double z = 0;
 
-		public double MaxValue
-		{
-			get
+			for (int i = 0; i < coord.Count; i++)
 			{
-				return patches.Count;
+				double coef = Math.Pow(t, i) * Math.Pow(1 - t, coord.Count - i - 1) * Cnp(coord.Count - 1, i);
+
+				x += coef * coord[i].x;
+				y += coef * coord[i].y;
+				z += coef * coord[i].z;
 			}
+
+			return new Coordinates(x, y, z);
 		}
 
-		IEnumerable<Coordinates> Enumerator()
+		public IEnumerable<Coordinates> Rasterize(double distance)
 		{
-			double n = MaxValue;
-			for (double i = 0; i < n+1; i += 1)
+			double incr = distance / (radius * length);
+
+			for (double i = 0; i < 1; i += incr)
 			{
 				yield return Eval(i);
 			}
-		}
 
-		public IEnumerator<Coordinates> GetEnumerator()
-		{
-			return Enumerator().GetEnumerator();
-		}
-
-		IEnumerator IEnumerable.GetEnumerator()
-		{
-			return Enumerator().GetEnumerator();
+			yield return Eval(1);
 		}
 	}
 }

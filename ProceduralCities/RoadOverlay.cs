@@ -96,6 +96,8 @@ namespace ProceduralCities
 							index0 + 2 * j + 1, index0 + 2 * j + 3, index0 + 2 * j + 2
 						});
 					}
+
+					Debug.Log("[ProceduralCities] Road " + i + ": " + vertices.Count + " vertices, " + triangles.Count + " triangles");
 				}
 			}
 

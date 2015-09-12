@@ -209,9 +209,10 @@ namespace ProceduralCities
 				Color32 c = palette[n % palette.Length];
 				n++;
 
-				ro.Add(new Bezier(i.Select(x => Vertices[x].coord).ToList()), new Color32(c.r, c.g, c.b, 128));
+				var road = new Bezier(i.Select(x => Vertices[x].coord).ToList(), Body.Radius);
+				ro.Add(road.Rasterize(1000), new Color32(c.r, c.g, c.b, 128));
 
-				RoadSegment.MakeSegments(Body, new Bezier(i.Select(x => Vertices[x].coord).ToList()));
+				RoadSegment.MakeSegments(Body, road);
 			}
 
 			PlanetDatabase.QueueToMainThread(() => ro.UpdateMesh());

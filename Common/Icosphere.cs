@@ -292,10 +292,6 @@ namespace ProceduralCities
 			foreach (var i in tri.Children)
 			{
 				Split(triangles[i], level);
-
-				/*Split(triangles[i].a, level - 1);
-				Split(triangles[i].b, level - 1);
-				Split(triangles[i].c, level - 1);*/
 			}
 		}
 
