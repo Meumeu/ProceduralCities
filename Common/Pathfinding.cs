@@ -6,56 +6,61 @@ namespace ProceduralCities
 {
 	struct Queue
 	{
-		SortedDictionary<Pair<double, int>, int> data;
+		class Item
+		{
+			public readonly double score;
+			public readonly int vertex;
+			public Item next;
+			public Item(double score, int vertex, Item next)
+			{
+				this.score = score;
+				this.vertex = vertex;
+				this.next = next;
+			}
+		}
+
+		Item list;
+
+		void InsertAfter(Item prev, double score, int vertex)
+		{
+			if (prev == null)
+				list = new Item(score, vertex, list);
+			else
+				prev.next = new Item(score, vertex, prev.next);
+		}
 
 		public void Add(double score, int vertex)
 		{
-			data.Add(new Pair<double, int>(score, vertex), 0);
-
-			if (data.Count == 0 || data.First().Key.item1 >= score)
-				Pathfinding.stat_insertionAtBeginning++;
-
-			Pathfinding.stat_insertionCount++;
-			Pathfinding.stat_openSetSizeSum += data.Count;
-			Pathfinding.stat_openSetSize_nb++;
-			Pathfinding.stat_openSetSizeMax = Math.Max(Pathfinding.stat_openSetSizeMax, data.Count);
+			Item prev = null;
+			for (var item = list; item != null; prev = item, item = item.next)
+			{
+				if (item.score > score || (item.score == score && item.vertex > vertex))
+				{
+					InsertAfter(prev, score, vertex);
+					return;
+				}
+			}
+			InsertAfter(prev, score, vertex);
 		}
 
 		public void ChangeScore(double oldScore, double newScore, int vertex)
 		{
-			data.Remove(new Pair<double, int>(oldScore, vertex));
-			data.Add(new Pair<double, int>(newScore, vertex), 0);
-
-			if (data.Count == 0 || data.First().Key.item1 >= newScore)
-				Pathfinding.stat_insertionAtBeginning++;
-
-			Pathfinding.stat_insertionCount++;
-			Pathfinding.stat_openSetSizeSum += data.Count;
-			Pathfinding.stat_openSetSize_nb++;
-			Pathfinding.stat_openSetSizeMax = Math.Max(Pathfinding.stat_openSetSizeMax, data.Count);
+			Add(newScore, vertex);
 		}
 
-		public Pair<double, int> GetBest()
+		public int GetBest()
 		{
-			return data.First().Key;
+			return list.vertex;
 		}
 
-		public Pair<double, int> RemoveBest()
+		public int RemoveBest()
 		{
-			var ret = data.First().Key;
-			data.Remove(ret);
-			return ret;
+			var res = list.vertex;
+			list = list.next;
+			return res;
 		}
 
-		public bool IsEmpty()
-		{
-			return data.Count == 0;
-		}
-
-		public Queue()
-		{
-			data = new SortedDictionary<Pair<double, int>, int>();
-		}
+		public bool Empty { get { return list == null; }}
 	}
 
 	[Serializable]
@@ -136,11 +141,9 @@ namespace ProceduralCities
 			Nodes[target].next = target;
 			open_set.Add(Nodes[target].f_score, target);
 
-			while (!open_set.IsEmpty())
+			while (!open_set.Empty)
 			{
-				Pair<double, int> current = open_set.RemoveBest();
-
-				int currentIdx = current.item2;
+				int currentIdx = open_set.RemoveBest();
 
 				// Update distances
 				foreach (int j in GetNeighbors(currentIdx))
@@ -190,12 +193,12 @@ namespace ProceduralCities
 				unvisited.Add(0, i);
 			}
 
-			while (!unvisited.IsEmpty())
+			while (!unvisited.Empty)
 			{
-				Pair<double, int> current = unvisited.RemoveBest();
+				int currentIdx = unvisited.RemoveBest();
 
-				double currentDistance = current.item1;
-				int currentIdx = current.item2;
+				double currentDistance = Nodes[currentIdx].g_score;
+
 
 				// Update distances
 				foreach (int j in GetNeighbors(currentIdx))
