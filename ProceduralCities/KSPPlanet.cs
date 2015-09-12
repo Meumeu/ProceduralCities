@@ -209,9 +209,9 @@ namespace ProceduralCities
 				Color32 c = palette[n % palette.Length];
 				n++;
 
-				ro.Add(i.Positions.Select(x => Vertices[x].coord), new Color32(c.r, c.g, c.b, 128));
+				ro.Add(new Bezier(i.Select(x => Vertices[x].coord).ToList()), new Color32(c.r, c.g, c.b, 128));
 
-				RoadSegment.MakeSegments(Body, i.Positions.Select(x => Vertices[x].coord).ToList());
+				RoadSegment.MakeSegments(Body, new Bezier(i.Select(x => Vertices[x].coord).ToList()));
 			}
 
 			PlanetDatabase.QueueToMainThread(() => ro.UpdateMesh());
@@ -240,32 +240,10 @@ namespace ProceduralCities
 		{
 			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
 
-			Vector3d up = new Vector3d(coord.x, coord.y, coord.z);
-			Vector3d north = Vector3d.Exclude(up, new Vector3d(0, 1, 0)).normalized;
-			Vector3d east = Vector3d.Cross(north, up).normalized;
+//			Vector3d up = new Vector3d(coord.x, coord.y, coord.z);
+//			Vector3d north = Vector3d.Exclude(up, new Vector3d(0, 1, 0)).normalized;
+//			Vector3d east = Vector3d.Cross(north, up).normalized;
 
-			double radius = Body.Radius;
-			double closestDist = double.MaxValue;
-			Coordinates closest = new Coordinates(0, 0);
-
-			foreach (Road i in Roads)
-			{
-				for (int j = 1, n = i.Positions.Count; j < n; j++)
-				{
-					Vertex v1 = Vertices[i.Positions[j - 1]];
-					Vertex v2 = Vertices[i.Positions[j]];
-
-					if (Coordinates.Distance(v1.coord, coord) < closestDist)
-					{
-						closestDist = Coordinates.Distance(v1.coord, coord);
-						closest = v1.coord;
-					}
-				}
-			}
-
-			Vector3d direction = new Vector3d(closest.x, closest.y, closest.z) - up;
-			double heading = Math.Atan2(Vector3d.Dot(direction, east), Vector3d.Dot(direction, north)) * 180 / Math.PI;
-			Log(string.Format("Closest road at {0} (ground distance: {1:F1} km, heading: {2:F1}°)", closest, closestDist * radius / 1000, heading));
 		}
 
 		#region Interface to Planet
@@ -274,29 +252,37 @@ namespace ProceduralCities
 			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
 			List<Pair<double, int>> ret = new List<Pair<double, int>>(coords.Count);
 
-			PlanetDatabase.QueueToMainThreadSync(() =>
-			{
-				foreach(Coordinates i in coords)
-				{
-					double alt = Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(i.Latitude * 180 / Math.PI, i.Longitude * 180 / Math.PI)) - Body.Radius;
-					int biome = -1;
 
-					if (Body.BiomeMap)
+			for(int i = 0; i < coords.Count; i += 1000)
+			{
+				int copy = i;
+				PlanetDatabase.QueueToMainThread(() =>
+				{
+					for(int j = copy; j < copy + 1000 && j < coords.Count; j++)
 					{
-						var attr = Body.BiomeMap.GetAtt(i.Latitude, i.Longitude);
-						for (int j = 0, n = Body.BiomeMap.Attributes.Length; j < n; j++)
+						Coordinates c = coords[j];
+						double alt = Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(c.Latitude * 180 / Math.PI, c.Longitude * 180 / Math.PI)) - Body.Radius;
+						int biome = -1;
+
+						if (Body.BiomeMap)
 						{
-							if (attr == Body.BiomeMap.Attributes[j])
+							var attr = Body.BiomeMap.GetAtt(c.Latitude, c.Longitude);
+							for (int k = 0, n = Body.BiomeMap.Attributes.Length; k < n; k++)
 							{
-								biome = j;
-								break;
+								if (attr == Body.BiomeMap.Attributes[k])
+								{
+									biome = k;
+									break;
+								}
 							}
 						}
-					}
 
-					ret.Add(new Pair<double, int>(alt, biome));
-				}
-			});
+						ret.Add(new Pair<double, int>(alt, biome));
+					}
+				});
+			}
+
+			PlanetDatabase.QueueToMainThreadSync(() => {});
 
 			return ret;
 		}

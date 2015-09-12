@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Diagnostics;
 using Cairo;
 
@@ -137,15 +138,15 @@ namespace ProceduralCities
 			{
 				using (var ctx = new Context(surface))
 				{
-					ctx.SetSourceColor(new Color(0.5, 0.7, 0));
+					ctx.SetSourceRGBA(0.5, 0.7, 0, 0.5);
 
 					for(int i = 0, n = p.Vertices.Count; i < n; i++)
 					{
-//						double x = (p.Vertices[i].coord.Longitude + Math.PI) * w / (2 * Math.PI);
-//						double y = (-p.Vertices[i].coord.Latitude + Math.PI / 2) * h / Math.PI;
+						double x = (p.Vertices[i].coord.Longitude + Math.PI) * w / (2 * Math.PI);
+						double y = (-p.Vertices[i].coord.Latitude + Math.PI / 2) * h / Math.PI;
 
-//						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
-//						ctx.Fill();
+						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
+						ctx.Fill();
 
 //						if (p.PathToNearestCity.Nodes[i].visited)
 //						{
@@ -168,12 +169,22 @@ namespace ProceduralCities
 //						}*/
 					}
 
-					ctx.SetSourceColor(new Color(0.8, 0, 0));
-					foreach(Planet.Road i in p.Roads)
+					ctx.SetSourceRGBA(0.8, 0, 0, 0.5);
+					foreach(var i in p.Roads)
 					{
-						for (int j = 1, n = i.Positions.Count; j < n; j++)
+						Coordinates? last = null;
+						foreach (Coordinates j in i.Select(x => p.Vertices[x].coord))
 						{
-							DrawEdge(ctx, p.Vertices[i.Positions[j - 1]].coord, p.Vertices[i.Positions[j]].coord, w, h, false);
+							if (last.HasValue)
+								DrawEdge(ctx, last.Value, j, w, h, false);
+
+							last = j;
+
+//							double x = (j.Longitude + Math.PI) * w / (2 * Math.PI);
+//							double y = (-j.Latitude + Math.PI / 2) * h / Math.PI;
+//
+//							ctx.Arc(x, y, 1, 0, 2 * Math.PI);
+//							ctx.Fill();
 						}
 					}
 

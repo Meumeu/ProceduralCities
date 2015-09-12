@@ -96,7 +96,7 @@ namespace ProceduralCities
 
 		public void GetTerrainGradient(double Latitude, double Longitude, out double x, out double y)
 		{
-			double i = ((Latitude + Math.PI / 2) / Math.PI * terrain.GetLength(0));
+			double i = (Latitude + Math.PI / 2) / Math.PI * terrain.GetLength(0);
 			double j = ((Longitude + Math.PI) / (2 * Math.PI) * terrain.GetLength(1)) % terrain.GetLength(1);
 
 			int i1 = (int)i;
@@ -136,8 +136,8 @@ namespace ProceduralCities
 
 		public byte GetBiomeId(double Latitude, double Longitude)
 		{
-			int i = (int)(((Latitude + Math.PI / 2) / Math.PI * biomes.GetLength(0)) % biomes.GetLength(0));
-			int j = (int)(((Longitude + Math.PI) / (2 * Math.PI) * biomes.GetLength(1)) % biomes.GetLength(1));
+			int i = (int)(((Latitude + Math.PI / 2) / Math.PI * biomes.GetLength(0))) % biomes.GetLength(0);
+			int j = (int)(((Longitude + Math.PI) / (2 * Math.PI) * biomes.GetLength(1))) % biomes.GetLength(1);
 
 			if (i < 0)
 				i += biomes.GetLength(0);

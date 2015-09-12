@@ -125,13 +125,13 @@ namespace ProceduralCities
 			return normal;
 		}
 
-		public static void MakeSegments(CelestialBody body, List<Coordinates> coordinates, double segmentLength = 5000, double width = 40)
+		public static void MakeSegments(CelestialBody body, Bezier road, double segmentLength = 5000, double width = 40)
 		{
 			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
 
 			double radius = body.Radius;
 			double triangleLength = width;
-			List<Vector3d> positions = coordinates.Select(u => new Vector3d(u.x, u.y, u.z) * radius).ToList();
+			List<Vector3d> positions = road.Select(u => new Vector3d(u.x, u.y, u.z) * radius).ToList();
 
 			// Compute the positions of every point on the road
 			List<Vector3d> positions2 = new List<Vector3d>();

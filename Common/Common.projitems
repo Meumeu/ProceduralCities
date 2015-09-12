@@ -13,7 +13,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)Coordinates.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Planet.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pair.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Icosphere.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pathfinding.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Bezier.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Icosphere.cs" />
   </ItemGroup>
 </Project>

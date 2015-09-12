@@ -58,6 +58,24 @@ namespace ProceduralCities
 		{
 			return Math.Acos(u.x * v.x + u.y * v.y + u.z * v.z);
 		}
+
+		public static Coordinates LinearCombination(double x, Coordinates u, double y, Coordinates v)
+		{
+			return new Coordinates(
+				x * u.x + y * v.x,
+				x * u.y + y * v.y,
+				x * u.z + y * v.z
+			);
+		}
+
+		public static Coordinates LinearCombination(double x, Coordinates u, double y, Coordinates v, double z, Coordinates w)
+		{
+			return new Coordinates(
+				x * u.x + y * v.x + z * w.x,
+				x * u.y + y * v.y + z * w.y,
+				x * u.z + y * v.z + z * w.z
+			);
+		}
 	}
 }
 
