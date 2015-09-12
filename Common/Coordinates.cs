@@ -56,7 +56,7 @@ namespace ProceduralCities
 
 		public static double Distance(Coordinates u, Coordinates v)
 		{
-			return Math.Acos(u.x * v.x + u.y * v.y + u.z * v.z);
+			return Math.Acos(Math.Min(1, u.x * v.x + u.y * v.y + u.z * v.z));
 		}
 
 		public static Coordinates LinearCombination(double x, Coordinates u, double y, Coordinates v)
