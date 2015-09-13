@@ -28,18 +28,27 @@ namespace ProceduralCities
 			}
 			set
 			{
-				if (!initialized)
+				if (value)
 				{
-					Initialize();
-					initialized = true;
+					if (!initialized)
+					{
+						Initialize();
+						initialized = true;
+					}
+
+					System.Diagnostics.Debug.Assert(gameObject != null);
+					System.Diagnostics.Debug.Assert(gameObject.GetComponent<MeshRenderer>() != null);
+
+					gameObject.SetActive(true);
+					/*if (gameObject.GetComponent<MeshRenderer>().enabled != value)
+					{
+						gameObject.GetComponent<MeshRenderer>().enabled = value;
+					}*/
 				}
-
-				System.Diagnostics.Debug.Assert(gameObject != null);
-				System.Diagnostics.Debug.Assert(gameObject.GetComponent<MeshRenderer>() != null);
-
-				if (gameObject.GetComponent<MeshRenderer>().enabled != value)
+				else
 				{
-					gameObject.GetComponent<MeshRenderer>().enabled = value;
+					if (gameObject != null)
+						gameObject.SetActive(false);
 				}
 			}
 		}
