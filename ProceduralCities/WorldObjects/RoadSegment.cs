@@ -9,6 +9,7 @@ namespace ProceduralCities
 	{
 		MeshFilter meshFilter;
 		MeshRenderer renderer;
+		MeshCollider collider;
 		Mesh mesh;
 
 		List<Vector3d> coordinates;
@@ -18,7 +19,6 @@ namespace ProceduralCities
 
 		private RoadSegment(CelestialBody body, List<Vector3d> coordinates, List<Vector3d> normals, double width)
 		{
-			System.Diagnostics.Debug.Assert(false);
 			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			UnloadDistance = float.MaxValue;
 			VisibleDistance = 40000f;
@@ -34,10 +34,13 @@ namespace ProceduralCities
 
 		protected override void Initialize()
 		{
+			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			gameObject = new GameObject();
 			meshFilter = gameObject.AddComponent<MeshFilter>();
 			renderer = gameObject.AddComponent<MeshRenderer>();
+			collider = gameObject.AddComponent<MeshCollider>();
 			mesh = meshFilter.mesh;
+			collider.sharedMesh = mesh;
 
 			gameObject.layer = 15; // Local scenery, avoids showing reentry effects
 			gameObject.transform.parent = Body.transform;
@@ -49,7 +52,15 @@ namespace ProceduralCities
 			material.mainTexture = GameDatabase.Instance.GetTexture("ProceduralCities/Assets/Road", false);
 			renderer.material = material;
 
-			List<double> terrain = coordinates.Select(x => Body.pqsController.GetSurfaceHeight(x)).ToList();
+			List<double> terrain = new List<double>();
+			for (int i = 0, n = coordinates.Count; i < n; i++)
+			{
+				double alt = Body.pqsController.GetSurfaceHeight(coordinates[i]) - Body.Radius;
+				if (alt < 5)
+					alt = 5;
+
+				terrain.Add(alt + Body.Radius);
+			}
 
 			List<Vector3> vertices = new List<Vector3>();
 			List<int> triangles = new List<int>();
@@ -170,8 +181,6 @@ namespace ProceduralCities
 					width));
 			});
 		}
-
-
 
 		public override void Destroy()
 		{
