@@ -2,7 +2,6 @@
 
 namespace ProceduralCities
 {
-	[Serializable]
 	public struct Coordinates
 	{
 		public readonly double x, y, z, Latitude, Longitude;
@@ -34,6 +33,24 @@ namespace ProceduralCities
 			x = Math.Cos(longitude) * Math.Cos(latitude);
 			y = Math.Sin(latitude);
 			z = Math.Sin(longitude) * Math.Cos(latitude);
+		}
+
+		public Coordinates(System.IO.BinaryReader reader)
+		{
+			Latitude = reader.ReadDouble();
+			Longitude = reader.ReadDouble();
+			x = reader.ReadDouble();
+			y = reader.ReadDouble();
+			z = reader.ReadDouble();
+		}
+
+		public void Write(System.IO.BinaryWriter writer)
+		{
+			writer.Write(Latitude);
+			writer.Write(Longitude);
+			writer.Write(x);
+			writer.Write(y);
+			writer.Write(z);
 		}
 
 		public override string ToString()

@@ -63,10 +63,8 @@ namespace ProceduralCities
 		public bool Empty { get { return list == null; }}
 	}
 
-	[Serializable]
 	public class Pathfinding
 	{
-		[Serializable]
 		public struct Node
 		{
 			public int next;
@@ -242,6 +240,31 @@ namespace ProceduralCities
 				from = Nodes[from].next;
 			}
 			yield return from;
+		}
+
+		public Pathfinding(System.IO.BinaryReader reader)
+		{
+			int n = reader.ReadInt32();
+			Nodes = new Node[n];
+			for (int i = 0; i < n; i++)
+			{
+				Nodes[i].next = reader.ReadInt32();
+				Nodes[i].f_score = reader.ReadDouble();
+				Nodes[i].g_score = reader.ReadDouble();
+				Nodes[i].visited = reader.ReadBoolean();
+			}
+		}
+
+		public void Write(System.IO.BinaryWriter writer)
+		{
+			writer.Write(Nodes.Count());
+			for (int i = 0, n = Nodes.Count(); i < n; i++)
+			{
+				writer.Write(Nodes[i].next);
+				writer.Write(Nodes[i].f_score);
+				writer.Write(Nodes[i].g_score);
+				writer.Write(Nodes[i].visited);
+			}
 		}
 	}
 }

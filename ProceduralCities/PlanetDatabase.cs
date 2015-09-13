@@ -3,8 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
 
 namespace ProceduralCities
@@ -130,21 +128,7 @@ namespace ProceduralCities
 			{
 				using (Stream stream = new FileStream(filename, FileMode.Open, FileAccess.Read))
 				{
-					var br = new BinaryReader(stream);
-					var fileVersion = br.ReadString();
-					var version = typeof(PlanetDatabase).Assembly.GetName().Version.ToString();
-
-					if (fileVersion == version)
-					{
-						IFormatter formatter = new BinaryFormatter();
-						var planet = (KSPPlanet)formatter.Deserialize(stream);
-						planet.Init(body);
-						return planet;
-					}
-					else
-					{
-						Debug.Log(string.Format("[ProceduralCities] Cannot load {0} from cache: incompatible version ({1} instead of {2})", body.name, fileVersion, version));
-					}
+					return new KSPPlanet(body, stream);
 				}
 			}
 			catch(Exception e)
@@ -180,8 +164,6 @@ namespace ProceduralCities
 			}
 			else
 			{
-				Debug.Log("[ProceduralCities] Loading planets");
-
 				lock (Instance.InhabitedBodies)
 				{
 					foreach (var i in Instance.InhabitedBodies)
@@ -204,14 +186,11 @@ namespace ProceduralCities
 						AddPlanet(planet);
 					}
 				}
-
-				Debug.Log("[ProceduralCities] Done");
 			}
 		}
 
 		public void Save(ConfigNode node)
 		{
-			Debug.Log("[ProceduralCities] Saving planets");
 			lock (Instance.InhabitedBodies)
 			{
 				foreach (var i in Instance.InhabitedBodies)
@@ -222,7 +201,6 @@ namespace ProceduralCities
 					node.AddNode(n);
 				}
 			}
-			Debug.Log("[ProceduralCities] Done");
 		}
 
 		#region Multithread stuff
@@ -518,7 +496,6 @@ namespace ProceduralCities
 			return null;
 		}
 
-		int lastNbVisible = -1;
 		public void Update()
 		{
 			CelestialBody current_planet = (CurrentScene == GameScenes.SPACECENTER || CurrentScene == GameScenes.FLIGHT) ? FlightGlobals.currentMainBody : null;
@@ -537,8 +514,6 @@ namespace ProceduralCities
 			// FIXME: only do this close to the ground?
 			if (current_planet != null && (current_planet != lastPlanet || Coordinates.Distance(coord, lastCoordinates) * current_planet.Radius > 1000))
 			{
-				Debug.Log(string.Format("[ProceduralCities] Moved by {0:F3} km", Coordinates.Distance(coord, lastCoordinates) * current_planet.Radius / 1000));
-				Debug.Log(string.Format("[ProceduralCities] previous: {0}, now: {1}", lastCoordinates, coord));
 				lastPlanet = current_planet;
 				lastCoordinates = coord;
 				QueueToWorker(new RequestPositionChanged(current_planet.name, coord));
@@ -565,12 +540,6 @@ namespace ProceduralCities
 						{
 							i++;
 						}
-					}
-
-					if (nbVisible != lastNbVisible)
-					{
-						Debug.Log("[ProceduralCities] Number of visible objects: " + nbVisible);
-						lastNbVisible = nbVisible;
 					}
 				}
 			}

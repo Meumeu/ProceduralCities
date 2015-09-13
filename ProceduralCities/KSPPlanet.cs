@@ -3,13 +3,10 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
 
 namespace ProceduralCities
 {
-	[Serializable]
 	public class KSPPlanet : Planet
 	{
 		internal string Name
@@ -20,32 +17,46 @@ namespace ProceduralCities
 			}
 		}
 
-		[NonSerialized]
 		CelestialBody Body;
 
-		[NonSerialized]
 		public GameObject roadOverlay;
 
-		[NonSerialized]
 		System.Diagnostics.Stopwatch watch;
-
-		[OnDeserializing]
-		private void OnDeserializing(StreamingContext context)
-		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
-			Debug.Log("[ProceduralCities] Deserializing KSPPlanet");
-			watch = System.Diagnostics.Stopwatch.StartNew();
-		}
 
 		public KSPPlanet(CelestialBody body)
 		{
 			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			Debug.Log("[ProceduralCities] Constructing KSPPlanet");
 			watch = System.Diagnostics.Stopwatch.StartNew();
+
 			Init(body);
 		}
 
-		public void Init(CelestialBody body)
+		const int SerializationFormat = 1;
+
+		public KSPPlanet(CelestialBody body, Stream stream)
+		{
+			BinaryReader reader = new BinaryReader(stream);
+			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			Debug.Log("[ProceduralCities] Deserializing KSPPlanet");
+			watch = System.Diagnostics.Stopwatch.StartNew();
+
+			int version = reader.ReadInt32();
+			if (version != SerializationFormat)
+				throw new Exception("wrong version: " + version + " instead of " + SerializationFormat);
+			
+			Read(reader);
+			Init(body);
+		}
+
+		void Write(Stream stream)
+		{
+			var writer = new BinaryWriter(stream);
+			writer.Write(SerializationFormat);
+			base.Write(writer);
+		}
+
+		void Init(CelestialBody body)
 		{
 			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			Body = body;
@@ -204,6 +215,7 @@ namespace ProceduralCities
 			Color[] palette = new[] { Color.blue, Color.green, Color.red, Color.cyan, Color.magenta, Color.yellow };
 
 			int n = 0;
+			var tmp = System.Diagnostics.Stopwatch.StartNew();
 			foreach (var i in Roads)
 			{
 				Color32 c = palette[n % palette.Length];
@@ -214,11 +226,12 @@ namespace ProceduralCities
 
 				RoadSegment.MakeSegments(Body, road);
 			}
+			Log(string.Format("{0} road segments created in {1:F0} ms", PlanetDatabase.Instance.WorldObjects.Count, tmp.ElapsedMilliseconds));
 
 			PlanetDatabase.QueueToMainThread(() => ro.UpdateMesh());
 
 			PlanetDatabase.QueueToMainThreadSync(() => {});
-			Log(string.Format("{0} road segments created", PlanetDatabase.Instance.WorldObjects.Count));
+			Log("Road overlay created");
 
 			Log("Planet built in " + watch.ElapsedMilliseconds + " ms");
 
@@ -228,11 +241,7 @@ namespace ProceduralCities
 				Log("Saving planet to " + filename);
 				using (Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write))
 				{
-					var bw = new BinaryWriter(stream);
-					bw.Write(typeof(PlanetDatabase).Assembly.GetName().Version.ToString());
-
-					IFormatter formatter = new BinaryFormatter();
-					formatter.Serialize(stream, this);
+					Write(stream);
 				}
 			}
 		}

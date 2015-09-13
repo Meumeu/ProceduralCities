@@ -5,10 +5,8 @@ using System.Linq;
 
 namespace ProceduralCities
 {
-	[Serializable]
 	public abstract class Planet
 	{
-		[Serializable]
 		public class Vertex
 		{
 			public Coordinates coord;
@@ -24,26 +22,71 @@ namespace ProceduralCities
 				coord = c;
 			}
 
+			public Vertex(System.IO.BinaryReader reader)
+			{
+				coord = new Coordinates(reader);
+				Biome = reader.ReadInt32();
+				TerrainHeight = reader.ReadDouble();
+				Score = reader.ReadDouble();
+				NearestCity = reader.ReadInt32();
+			}
+
+			public void Write(System.IO.BinaryWriter writer)
+			{
+				coord.Write(writer);
+				writer.Write(Biome);
+				writer.Write(TerrainHeight);
+				writer.Write(Score);
+				writer.Write(NearestCity);
+			}
+
 			public Vertex()
 			{
 			}
 		}
 
-		[Serializable]
 		public class Biome
 		{
 			public string Name;
 			public double Desirability;
 
+			public Biome()
+			{
+			}
+
+			public Biome(System.IO.BinaryReader reader)
+			{
+				Name = reader.ReadString();
+				Desirability = reader.ReadDouble();
+			}
+
+			public void Write(System.IO.BinaryWriter writer)
+			{
+				writer.Write(Name);
+				writer.Write(Desirability);
+			}
 		}
 
-		[Serializable]
 		public class City
 		{
 			public int Position;
+
+			public City()
+			{
+			}
+
+			public City(System.IO.BinaryReader reader)
+			{
+				Position = reader.ReadInt32();
+			}
+
+			public void Write(System.IO.BinaryWriter writer)
+			{
+				writer.Write(Position);
+			}
 		}
 
-		public bool Built;
+		bool Built;
 		public int Seed;
 		Random PRNG;
 
@@ -57,12 +100,113 @@ namespace ProceduralCities
 		public Pathfinding PathToOcean;
 		public Pathfinding PathToNearestCity;
 
+		public Planet()
+		{
+			Built = false;
+		}
+
+		protected void Read(System.IO.BinaryReader reader)
+		{
+			int n, m;
+
+			Seed = reader.ReadInt32();
+
+			n = reader.ReadInt32();
+			Vertices = new List<Vertex>(n);
+			for(int i = 0; i < n; i++)
+				Vertices.Add(new Vertex(reader));
+
+			n = reader.ReadInt32();
+			m = reader.ReadInt32();
+			Edges = new int[n, m];
+			for (int i = 0; i < n; i++)
+				for (int j = 0; j < m; j++)
+					Edges[i, j] = reader.ReadInt32();
+
+			n = reader.ReadInt32();
+			m = reader.ReadInt32();
+			EdgeCost = new double[n, m];
+			for (int i = 0; i < n; i++)
+				for (int j = 0; j < m; j++)
+					EdgeCost[i, j] = reader.ReadDouble();
+
+			n = reader.ReadInt32();
+			Biomes = new List<Biome>(n);
+			for (int i = 0; i < n; i++)
+				Biomes.Add(new Biome(reader));
+
+			n = reader.ReadInt32();
+			Cities = new List<City>(n);
+			for (int i = 0; i < n; i++)
+				Cities.Add(new City(reader));
+
+			n = reader.ReadInt32();
+			Roads = new List<List<int>>(n);
+			for (int i = 0; i < n; i++)
+			{
+				m = reader.ReadInt32();
+				var tmp = new List<int>(m);
+				for (int j = 0; j < m; j++)
+				{
+					tmp.Add(reader.ReadInt32());
+				}
+				Roads.Add(tmp);
+			}
+
+			PathToOcean = new Pathfinding(reader);
+			PathToNearestCity = new Pathfinding(reader);
+
+			Built = true;
+		}
+
+		protected void Write(System.IO.BinaryWriter writer)
+		{
+			writer.Write(Seed);
+			
+			writer.Write(Vertices.Count);
+			for (int i = 0, n = Vertices.Count; i < n; i++)
+				Vertices[i].Write(writer);
+
+			writer.Write(Edges.GetLength(0));
+			writer.Write(Edges.GetLength(1));
+			for (int i = 0, n = Edges.GetLength(0), m = Edges.GetLength(1); i < n; i++)
+				for (int j = 0; j < m; j++)
+					writer.Write(Edges[i, j]);
+
+			writer.Write(EdgeCost.GetLength(0));
+			writer.Write(EdgeCost.GetLength(1));
+			for (int i = 0, n = EdgeCost.GetLength(0), m = EdgeCost.GetLength(1); i < n; i++)
+				for (int j = 0; j < m; j++)
+					writer.Write(EdgeCost[i, j]);
+
+			writer.Write(Biomes.Count);
+			for (int i = 0, n = Biomes.Count; i < n; i++)
+				Biomes[i].Write(writer);
+
+			writer.Write(Cities.Count);
+			for (int i = 0, n = Cities.Count; i < n; i++)
+				Cities[i].Write(writer);
+
+			writer.Write(Roads.Count);
+			for (int i = 0, n = Roads.Count; i < n; i++)
+			{
+				writer.Write(Roads[i].Count);
+				for (int j = 0, m = Roads[i].Count; j < m; j++)
+					writer.Write(Roads[i][j]);
+			}
+
+			PathToOcean.Write(writer);
+			PathToNearestCity.Write(writer);
+		}
+
 		public void Build()
 		{
-			if (!Built)
+			if (Built)
 			{
-				var watch = System.Diagnostics.Stopwatch.StartNew();
-
+				BuildFinished(true);
+			}
+			else
+			{
 				Log("Initializigng PRNG with seed " + Seed);
 				PRNG = new System.Random(Seed);
 
@@ -121,16 +265,9 @@ namespace ProceduralCities
 
 				Pathfinding.PrintStats();
 
-				Log("Smoothing roads");
-				SmoothRoads();
-
+				Log(string.Format("{0} vertices", Vertices.Count));
+				BuildFinished(false);
 				Built = true;
-				BuildFinished(fromCache: false);
-				Log(string.Format("{0} vertices, elapsed: {1}", Vertices.Count, watch.Elapsed));
-			}
-			else
-			{
-				BuildFinished(fromCache: true);
 			}
 		}
 
@@ -329,21 +466,6 @@ namespace ProceduralCities
 
 			FillEdgeCost(oldCount);
 		}
-
-		void SmoothRoads()
-		{
-			/*for (int i = 0, n = Roads.Count; i < n; i++)
-			{
-				var curve = new Bezier(Roads[i]);
-				var newRoad = new Road();
-				for (double j = 0, length = Roads[i].Count; j < length; j += 0.1)
-				{
-					newRoad.Add(curve.Eval(j));
-				}
-
-				Roads[i] = newRoad;
-			}*/
-		}
 		#endregion
 
 		void FillTerrainAndBiome(int from = 0)
@@ -428,7 +550,7 @@ namespace ProceduralCities
 
 		public abstract double Radius();
 		protected abstract void Log(string message);
-		protected virtual void BuildFinished(bool fromCache) {}
+		protected virtual void BuildFinished(bool FromCache) {}
 		#endregion
 	}
 }

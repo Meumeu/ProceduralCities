@@ -20,11 +20,7 @@ namespace ProceduralCities
 				if (gameObject == null)
 					return false;
 
-				var renderer = gameObject.GetComponent<MeshRenderer>();
-				if (renderer == null)
-					return false;
-
-				return renderer.enabled;
+				return gameObject.activeSelf;
 			}
 			set
 			{
@@ -40,10 +36,13 @@ namespace ProceduralCities
 					System.Diagnostics.Debug.Assert(gameObject.GetComponent<MeshRenderer>() != null);
 
 					gameObject.SetActive(true);
-					/*if (gameObject.GetComponent<MeshRenderer>().enabled != value)
-					{
+
+					if (gameObject.GetComponent<MeshRenderer>() != null)
 						gameObject.GetComponent<MeshRenderer>().enabled = value;
-					}*/
+					
+					if (gameObject.GetComponent<MeshCollider>() != null)
+						gameObject.GetComponent<MeshCollider>().enabled = value;
+					
 				}
 				else
 				{
