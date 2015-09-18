@@ -9,20 +9,23 @@ namespace ProceduralCities
 {
 	public class PlanetDatabase
 	{
+
 		static PlanetDatabase _instance;
 		public int Seed;
 		GameScenes CurrentScene;
 
-		Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
-		internal List<WorldObject> WorldObjects = new List<WorldObject>();
+		internal Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
+		//internal List<WorldObject> WorldObjects = new List<WorldObject>();
 
 		Thread Worker;
 		Queue<Action> MainThreadQueue = new Queue<Action>();
-		Queue<Request> WorkerQueue = new Queue<Request>();
+		Queue<Action> WorkerQueue = new Queue<Action>();
 
 		CelestialBody lastPlanet;
 		CelestialBody lastCameraPlanet;
 		Coordinates lastCoordinates;
+		bool PhysicsReady;
+		bool WorkerQuitRequested;
 
 		public static PlanetDatabase Instance
 		{
@@ -85,11 +88,6 @@ namespace ProceduralCities
 					i.Value.Destroy();
 				}
 
-				foreach (var i in WorldObjects)
-				{
-					i.Destroy();
-				}
-
 				_instance = null;
 			}
 		}
@@ -97,7 +95,7 @@ namespace ProceduralCities
 		public void AddWorldObject(WorldObject wo)
 		{
 			System.Diagnostics.Debug.Assert(IsMainThread);
-			Instance.WorldObjects.Add(wo);
+			Instance.InhabitedBodies[wo.Body.name].worldObjects.Add(wo);
 		}
 
 		// InhabitedBodies must be locked
@@ -105,7 +103,7 @@ namespace ProceduralCities
 		{
 			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			Instance.InhabitedBodies.Add(planet.Name, planet);
-			QueueToWorker(new RequestPlanetAdded(planet.Name));
+			QueueToWorker(() =>  Instance.DoWork_PlanetAdded(new RequestPlanetAdded(planet.Name)));
 		}
 
 		public static KSPPlanet GetPlanet(string name)
@@ -187,6 +185,8 @@ namespace ProceduralCities
 					}
 				}
 			}
+
+			QueueToWorker(() => QueueToMainThread(() => PhysicsReady = true));
 		}
 
 		public void Save(ConfigNode node)
@@ -292,15 +292,15 @@ namespace ProceduralCities
 		void DoWork()
 		{
 			Log("Worker thread started");
-			while(true)
+			while(!WorkerQuitRequested)
 			{
-				Request req;
+				Action act;
 				Monitor.Enter(WorkerQueue);
 				try
 				{
 					while(WorkerQueue.Count == 0)
 						Monitor.Wait(WorkerQueue);
-					req = WorkerQueue.Dequeue();
+					act = WorkerQueue.Dequeue();
 				}
 				finally
 				{
@@ -309,43 +309,23 @@ namespace ProceduralCities
 
 				try
 				{
-					if (req is RequestQuit)
-					{
-						Log("Worker thread stopped");
-						return;
-					}
-					else if (req is RequestPlanetAdded)
-					{
-						DoWork_PlanetAdded(req as RequestPlanetAdded);
-					}
-					else if (req is RequestPositionChanged)
-					{
-						DoWork_PositionChanged(req as RequestPositionChanged);
-					}
-					else if (req is RequestCameraChanged)
-					{
-						// TODO: stuff ?
-					}
-					else
-					{
-						Log("Unknown request");
-					}
+					act();
 				}
 				catch(Exception e)
 				{
-					Log("Exception during processing of request of type " + req.GetType());
+					Log("Exception during processing of request");
 					LogException(e);
 				}
 			}
 		}
 
-		static void QueueToWorker(Request req)
+		static void QueueToWorker(Action act)
 		{
 			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			Monitor.Enter(Instance.WorkerQueue);
 			try
 			{
-				Instance.WorkerQueue.Enqueue(req);
+				Instance.WorkerQueue.Enqueue(act);
 				Monitor.Pulse(Instance.WorkerQueue);
 			}
 			finally
@@ -354,35 +334,66 @@ namespace ProceduralCities
 			}
 		}
 
-		static void DequeueFromWorker(int timeout = int.MaxValue)
+		static void ClearAndQueueToWorker(Action act)
 		{
 			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
-			lock (Instance.MainThreadQueue)
+			Monitor.Enter(Instance.WorkerQueue);
+			try
 			{
-				var watch = System.Diagnostics.Stopwatch.StartNew();
+				Instance.WorkerQueue.Clear();
+				Instance.WorkerQueue.Enqueue(act);
+				Monitor.Pulse(Instance.WorkerQueue);
+			}
+			finally
+			{
+				Monitor.Exit(Instance.WorkerQueue);
+			}
+		}
 
-				while (Instance.MainThreadQueue.Count > 0 && watch.ElapsedMilliseconds < timeout)
+		static void DequeueFromWorker(int timeout = int.MaxValue, bool wait = false)
+		{
+			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+
+			Monitor.Enter(Instance.MainThreadQueue);
+			try
+			{
+				if (wait)
+				{
+					while(Instance.MainThreadQueue.Count == 0)
+						Monitor.Wait(Instance.MainThreadQueue);
+
+					Action act = Instance.MainThreadQueue.Dequeue();
+					act();
+				}
+				else if (Instance.MainThreadQueue.Count > 0)
 				{
 					Action act = Instance.MainThreadQueue.Dequeue();
-
-					try
-					{
-						act();
-					}
-					catch(Exception e)
-					{
-						Debug.LogException(e);
-					}
+					act();
 				}
+			}
+			catch(Exception e)
+			{
+				Debug.LogException(e);
+			}
+			finally
+			{
+				Monitor.Exit(Instance.MainThreadQueue);
 			}
 		}
 
 		public static void QueueToMainThread(Action act)
 		{
 			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
-			lock (Instance.MainThreadQueue)
+
+			Monitor.Enter(Instance.MainThreadQueue);
+			try
 			{
 				Instance.MainThreadQueue.Enqueue(act);
+				Monitor.Pulse(Instance.MainThreadQueue);
+			}
+			finally
+			{
+				Monitor.Exit(Instance.MainThreadQueue);
 			}
 		}
 
@@ -393,31 +404,27 @@ namespace ProceduralCities
 			bool finished = false;
 			bool error = false;
 
-			lock(Instance.MainThreadQueue)
+			QueueToMainThread(() =>
 			{
-				Instance.MainThreadQueue.Enqueue(() =>
+				try
 				{
-					try
-					{
-						act();
-					}
-					catch(Exception)
-					{
-						Monitor.Enter(monitor);
-						error = true;
-						Monitor.Pulse(monitor);
-						Monitor.Exit(monitor);
-						throw;
-					}
-					finally
-					{
-						Monitor.Enter(monitor);
-						finished = true;
-						Monitor.Pulse(monitor);
-						Monitor.Exit(monitor);
-					}
-				});
-			}
+					act();
+				}
+				catch(Exception)
+				{
+					Monitor.Enter(monitor);
+					error = true;
+					Monitor.Pulse(monitor);
+					Monitor.Exit(monitor);
+				}
+				finally
+				{
+					Monitor.Enter(monitor);
+					finished = true;
+					Monitor.Pulse(monitor);
+					Monitor.Exit(monitor);
+				}
+			});
 
 			Monitor.Enter(monitor);
 			try
@@ -441,6 +448,7 @@ namespace ProceduralCities
 			Debug.Log("[ProceduralCities] Starting worker thread");
 			System.Diagnostics.Debug.Assert(Worker == null);
 			Worker = new Thread(DoWork);
+			WorkerQuitRequested = false;
 			Worker.Start();
 		}
 
@@ -448,19 +456,9 @@ namespace ProceduralCities
 		{
 			Debug.Log("[ProceduralCities] Stopping worker thread");
 			System.Diagnostics.Debug.Assert(Worker != null);
-			System.Diagnostics.Debug.Assert(!IsMainThread);
+			System.Diagnostics.Debug.Assert(IsMainThread);
 
-			Monitor.Enter(WorkerQueue);
-			try
-			{
-				Instance.WorkerQueue.Clear();
-				Instance.WorkerQueue.Enqueue(new RequestQuit());
-				Monitor.Pulse(WorkerQueue);
-			}
-			finally
-			{
-				Monitor.Exit(WorkerQueue);
-			}
+			ClearAndQueueToWorker(() => WorkerQuitRequested = true);
 
 			// Get the last log messages
 			DequeueFromWorker();
@@ -499,7 +497,7 @@ namespace ProceduralCities
 		public void Update()
 		{
 			CelestialBody current_planet = (CurrentScene == GameScenes.SPACECENTER || CurrentScene == GameScenes.FLIGHT) ? FlightGlobals.currentMainBody : null;
-			CelestialBody camera_planet = GetCameraPlanet();
+			//CelestialBody camera_planet = GetCameraPlanet();
 			Coordinates coord;
 
 			if (FlightGlobals.ActiveVessel == null)
@@ -516,9 +514,15 @@ namespace ProceduralCities
 			{
 				lastPlanet = current_planet;
 				lastCoordinates = coord;
-				QueueToWorker(new RequestPositionChanged(current_planet.name, coord));
+				QueueToWorker(() => DoWork_PositionChanged(new RequestPositionChanged(current_planet.name, coord)));
 
-				lock (WorldObjects)
+				KSPPlanet planet;
+				if (InhabitedBodies.TryGetValue(current_planet.name, out planet))
+				{
+					planet.worldObjects.UpdateVisibleObjects();
+				}
+
+				/*lock (WorldObjects)
 				{
 					int nbVisible = 0;
 					for (int i = 0; i < WorldObjects.Count;)
@@ -541,19 +545,26 @@ namespace ProceduralCities
 							i++;
 						}
 					}
-				}
+				}*/
 			}
 
-			if (camera_planet != null && camera_planet != lastCameraPlanet)
+			/*if (camera_planet != null && camera_planet != lastCameraPlanet)
 			{
-				QueueToWorker(new RequestCameraChanged(camera_planet.name));
+				QueueToWorker(() => DoWork_PositionChanged(new RequestCameraChanged(camera_planet.name)));
 				lastCameraPlanet = camera_planet;
-			}
+			}*/
 
 			DequeueFromWorker(20);
+		}
+
+		public void FixedUpdate()
+		{
+			while (!PhysicsReady && HighLogic.LoadedSceneIsFlight)
+			{
+				DequeueFromWorker(wait: true);
+			}
 		}
 
 		#endregion
 	}
 }
-	

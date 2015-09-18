@@ -118,11 +118,11 @@ namespace ProceduralCities
 
 		public void FixedUpdate()
 		{
+			PlanetDatabase.Instance.FixedUpdate();
 		}
 
 		public override void OnLoad(ConfigNode node)
 		{
-
 			if (PlanetDatabase.Loaded) // PlanetDatabase is already loaded, don't rebuild everything
 			{
 				Debug.Log("[ProceduralCities] Planet database is already loaded");

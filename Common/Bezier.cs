@@ -10,6 +10,7 @@ namespace ProceduralCities
 		List<Coordinates> coord;
 		double radius;
 		double length;
+		double[] Cnp;
 
 		double fact(int n)
 		{
@@ -20,9 +21,17 @@ namespace ProceduralCities
 			return ret;
 		}
 
-		double Cnp(int n, int p)
+		void ComputeCnp()
 		{
-			return fact(n) / (fact(p) * fact(n - p));
+			int n = coord.Count - 1;
+			Cnp = new double[n + 1];
+
+			double factN = fact(n);
+			for (int p = 0; 2 * p <= n; p++)
+			{
+				Cnp[p] = factN / (fact(p) * fact(n - p));
+				Cnp[n - p] = Cnp[p];
+			}
 		}
 
 		public Bezier(List<Coordinates> coordinates, double radius)
@@ -38,6 +47,8 @@ namespace ProceduralCities
 			{
 				length += Coordinates.Distance(coord[i - 1], coord[i]);
 			}
+
+			ComputeCnp();
 		}
 
 		public Coordinates Eval(double t)
@@ -53,7 +64,7 @@ namespace ProceduralCities
 
 			for (int i = 0; i < coord.Count; i++)
 			{
-				double coef = Math.Pow(t, i) * Math.Pow(1 - t, coord.Count - i - 1) * Cnp(coord.Count - 1, i);
+				double coef = Math.Pow(t, i) * Math.Pow(1 - t, coord.Count - i - 1) * Cnp[i];
 
 				x += coef * coord[i].x;
 				y += coef * coord[i].y;

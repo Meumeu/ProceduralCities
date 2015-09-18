@@ -51,6 +51,7 @@
     <Compile Include="MapOverlay.cs" />
     <Compile Include="RoadOverlay.cs" />
     <Compile Include="WorldObjects\RoadSegment.cs" />
+    <Compile Include="ContentCatalog.cs" />
   </ItemGroup>
   <Import Project="..\Common\Common.projitems" Label="Shared" Condition="Exists('..\Common\Common.projitems')" />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

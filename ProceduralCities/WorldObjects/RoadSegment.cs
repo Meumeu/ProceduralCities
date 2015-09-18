@@ -40,7 +40,6 @@ namespace ProceduralCities
 			renderer = gameObject.AddComponent<MeshRenderer>();
 			collider = gameObject.AddComponent<MeshCollider>();
 			mesh = meshFilter.mesh;
-			collider.sharedMesh = mesh;
 
 			gameObject.layer = 15; // Local scenery, avoids showing reentry effects
 			gameObject.transform.parent = Body.transform;
@@ -102,13 +101,7 @@ namespace ProceduralCities
 			mesh.RecalculateBounds();
 			mesh.RecalculateNormals();
 			mesh.Optimize();
-			try
-			{
-				renderer.enabled = true;
-			}
-			catch(Exception)
-			{
-			}
+			collider.sharedMesh = mesh;
 		}
 
 		static List<Vector3d> ComputeNormals(List<Vector3d> points)

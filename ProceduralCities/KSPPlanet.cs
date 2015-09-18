@@ -20,6 +20,7 @@ namespace ProceduralCities
 		CelestialBody Body;
 
 		public GameObject roadOverlay;
+		public ContentCatalog worldObjects;
 
 		System.Diagnostics.Stopwatch watch;
 
@@ -60,14 +61,27 @@ namespace ProceduralCities
 		{
 			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
 			Body = body;
+
 			roadOverlay = new GameObject();
 			var ro = roadOverlay.AddComponent<RoadOverlay>();
 			ro.Body = Body;
+
+			worldObjects = body.pqsController.transform.GetComponentInChildren<ContentCatalog>();
+			if (worldObjects == null)
+			{
+				var go = new GameObject("ContentCatalog");
+				go.transform.parent = body.pqsController.transform;
+				worldObjects = go.AddComponent<ContentCatalog>();
+				worldObjects.order = int.MaxValue;
+				worldObjects.enabled = true;
+				worldObjects.sphere = body.pqsController;
+			}
 		}
 
 		public void Destroy()
 		{
 			GameObject.Destroy(roadOverlay);
+			GameObject.Destroy(worldObjects.gameObject);
 		}
 
 		public void Load(ConfigNode node)
@@ -226,7 +240,7 @@ namespace ProceduralCities
 
 				RoadSegment.MakeSegments(Body, road);
 			}
-			Log(string.Format("{0} road segments created in {1:F0} ms", PlanetDatabase.Instance.WorldObjects.Count, tmp.ElapsedMilliseconds));
+			Log(string.Format("{0} road segments created in {1:F0} ms", PlanetDatabase.Instance.InhabitedBodies[Body.name].worldObjects.Count, tmp.ElapsedMilliseconds));
 
 			PlanetDatabase.QueueToMainThread(() => ro.UpdateMesh());
 
