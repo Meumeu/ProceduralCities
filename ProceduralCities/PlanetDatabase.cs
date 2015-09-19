@@ -15,7 +15,6 @@ namespace ProceduralCities
 		GameScenes CurrentScene;
 
 		internal Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
-		//internal List<WorldObject> WorldObjects = new List<WorldObject>();
 
 		Thread Worker;
 		Queue<Action> MainThreadQueue = new Queue<Action>();
@@ -103,7 +102,7 @@ namespace ProceduralCities
 		{
 			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
 			Instance.InhabitedBodies.Add(planet.Name, planet);
-			QueueToWorker(() =>  Instance.DoWork_PlanetAdded(new RequestPlanetAdded(planet.Name)));
+			QueueToWorker(() =>  planet.Build());
 		}
 
 		public static KSPPlanet GetPlanet(string name)
@@ -204,50 +203,12 @@ namespace ProceduralCities
 		}
 
 		#region Multithread stuff
-		abstract class Request
-		{
-		}
-
-		class RequestQuit : Request
-		{
-		}
-
-		class RequestPositionChanged : Request
-		{
-			public readonly string Planet;
-			public readonly Coordinates Position;
-			public RequestPositionChanged(string Planet, Coordinates Position)
-			{
-				this.Planet = Planet;
-				this.Position = Position;
-			}
-		}
-
-		class RequestCameraChanged : Request
-		{
-			public readonly string Planet;
-			public RequestCameraChanged(string Planet)
-			{
-				this.Planet = Planet;
-			}
-		}
-
-		class RequestPlanetAdded : Request
-		{
-			public readonly string Name;
-			public RequestPlanetAdded(string Name)
-			{
-				this.Name = Name;
-			}
-		}
 
 		static public void Log(string message)
 		{
 			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
-			QueueToMainThread(() =>
-			{
-				Debug.Log("[ProceduralCities] " + message.Replace("\n", "\n[ProceduralCities] "));
-			});
+
+			QueueToMainThread(() => Debug.Log("[ProceduralCities] " + message.Replace("\n", "\n[ProceduralCities] ")));
 		}
 
 		static public void LogException(Exception e)
@@ -257,36 +218,6 @@ namespace ProceduralCities
 			{
 				Debug.LogException(e);
 			});
-		}
-
-		void DoWork_PlanetAdded(RequestPlanetAdded req)
-		{
-			System.Diagnostics.Debug.Assert(!IsMainThread);
-			KSPPlanet planet;
-			lock (InhabitedBodies)
-			{
-				if (!InhabitedBodies.ContainsKey(req.Name))
-					return;
-
-				planet = InhabitedBodies[req.Name];
-			}
-
-			planet.Build();
-		}
-
-		void DoWork_PositionChanged(RequestPositionChanged req)
-		{
-			System.Diagnostics.Debug.Assert(!IsMainThread);
-			KSPPlanet planet = null;
-			lock (InhabitedBodies)
-			{
-				if (!InhabitedBodies.ContainsKey(req.Planet))
-					return;
-
-				planet = InhabitedBodies[req.Planet];
-			}
-
-			planet?.UpdatePosition(req.Position);
 		}
 
 		void DoWork()
@@ -353,11 +284,12 @@ namespace ProceduralCities
 		static void DequeueFromWorker(int timeout = int.MaxValue, bool wait = false)
 		{
 			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+			var watch = System.Diagnostics.Stopwatch.StartNew();
 
 			Monitor.Enter(Instance.MainThreadQueue);
 			try
 			{
-				if (wait)
+				if (wait && Instance.MainThreadQueue.Count == 0)
 				{
 					while(Instance.MainThreadQueue.Count == 0)
 						Monitor.Wait(Instance.MainThreadQueue);
@@ -365,10 +297,22 @@ namespace ProceduralCities
 					Action act = Instance.MainThreadQueue.Dequeue();
 					act();
 				}
-				else if (Instance.MainThreadQueue.Count > 0)
+				else
 				{
-					Action act = Instance.MainThreadQueue.Dequeue();
-					act();
+					while (Instance.MainThreadQueue.Count > 0 && watch.ElapsedMilliseconds < timeout)
+					{
+						Action act = Instance.MainThreadQueue.Dequeue();
+
+						Monitor.Exit(Instance.MainThreadQueue);
+						try
+						{
+							act();
+						}
+						finally
+						{
+							Monitor.Enter(Instance.MainThreadQueue);
+						}
+					}
 				}
 			}
 			catch(Exception e)
@@ -514,38 +458,14 @@ namespace ProceduralCities
 			{
 				lastPlanet = current_planet;
 				lastCoordinates = coord;
-				QueueToWorker(() => DoWork_PositionChanged(new RequestPositionChanged(current_planet.name, coord)));
-
+				string planetName = current_planet.name;
 				KSPPlanet planet;
 				if (InhabitedBodies.TryGetValue(current_planet.name, out planet))
 				{
+					QueueToWorker(() => planet.UpdatePosition(coord));
+
 					planet.worldObjects.UpdateVisibleObjects();
 				}
-
-				/*lock (WorldObjects)
-				{
-					int nbVisible = 0;
-					for (int i = 0; i < WorldObjects.Count;)
-					{
-						double distance = Coordinates.Distance(WorldObjects[i].Position, coord) * current_planet.Radius;
-						bool visible = distance < WorldObjects[i].VisibleDistance && WorldObjects[i].Planet == current_planet.name ;
-						WorldObjects[i].visible = visible;
-						if (visible)
-							nbVisible++;
-
-						if (WorldObjects[i].Planet != current_planet.name || distance > WorldObjects[i].UnloadDistance)
-						{
-							WorldObject tmp = WorldObjects[i];
-							WorldObjects[i] = WorldObjects[WorldObjects.Count - 1];
-							WorldObjects.RemoveAt(WorldObjects.Count - 1);
-							tmp.Destroy();
-						}
-						else
-						{
-							i++;
-						}
-					}
-				}*/
 			}
 
 			/*if (camera_planet != null && camera_planet != lastCameraPlanet)

@@ -240,11 +240,11 @@ namespace ProceduralCities
 
 				RoadSegment.MakeSegments(Body, road);
 			}
-			Log(string.Format("{0} road segments created in {1:F0} ms", PlanetDatabase.Instance.InhabitedBodies[Body.name].worldObjects.Count, tmp.ElapsedMilliseconds));
 
 			PlanetDatabase.QueueToMainThread(() => ro.UpdateMesh());
 
 			PlanetDatabase.QueueToMainThreadSync(() => {});
+			Log(string.Format("{0} road segments created in {1:F0} ms", PlanetDatabase.Instance.InhabitedBodies[Body.name].worldObjects.Count, tmp.ElapsedMilliseconds));
 			Log("Road overlay created");
 
 			Log("Planet built in " + watch.ElapsedMilliseconds + " ms");

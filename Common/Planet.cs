@@ -481,7 +481,6 @@ namespace ProceduralCities
 
 		void FillEdgeCost(int from = 0)
 		{
-			// TODO: only get the new values
 			int nbSamples = 10;
 
 			List<Coordinates> coords = new List<Coordinates>();

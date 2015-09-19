@@ -34,6 +34,19 @@ namespace ProceduralCities
 			}
 		}
 
+		double Pow(double a, int b)
+		{
+			double ret = 1;
+			for(int i = 1; i <= b; i *= 2)
+			{
+				if ((i & b) != 0)
+					ret *= a;
+				a = a * a;
+			}
+
+			return ret;
+		}
+
 		public Bezier(List<Coordinates> coordinates, double radius)
 		{
 			if (coordinates.Count < 2)
@@ -64,7 +77,7 @@ namespace ProceduralCities
 
 			for (int i = 0; i < coord.Count; i++)
 			{
-				double coef = Math.Pow(t, i) * Math.Pow(1 - t, coord.Count - i - 1) * Cnp[i];
+				double coef = Pow(t, i) * Pow(1 - t, coord.Count - i - 1) * Cnp[i];
 
 				x += coef * coord[i].x;
 				y += coef * coord[i].y;
