@@ -26,7 +26,7 @@ namespace ProceduralCities
 
 		public KSPPlanet(CelestialBody body)
 		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			Debug.Log("[ProceduralCities] Constructing KSPPlanet");
 			watch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -38,7 +38,7 @@ namespace ProceduralCities
 		public KSPPlanet(CelestialBody body, Stream stream)
 		{
 			BinaryReader reader = new BinaryReader(stream);
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			Debug.Log("[ProceduralCities] Deserializing KSPPlanet");
 			watch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -59,7 +59,7 @@ namespace ProceduralCities
 
 		void Init(CelestialBody body)
 		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			Body = body;
 
 			roadOverlay = new GameObject();
@@ -86,7 +86,7 @@ namespace ProceduralCities
 
 		public void Load(ConfigNode node)
 		{
-			System.Diagnostics.Debug.Assert(node.GetValue("name") == Name);
+			DebugUtils.Assert(node.GetValue("name") == Name);
 
 			// FIXME: don't hardcode values
 			Biomes = Body.BiomeMap.Attributes.Select(x => new Biome() {
@@ -222,7 +222,7 @@ namespace ProceduralCities
 
 		protected override void BuildFinished(bool fromCache)
 		{
-			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
 			Log("Building road map overlay and roads");
 			var ro = roadOverlay.GetComponent<RoadOverlay>();
 
@@ -262,7 +262,7 @@ namespace ProceduralCities
 
 		public void UpdatePosition(Coordinates coord)
 		{
-			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
 
 //			Vector3d up = new Vector3d(coord.x, coord.y, coord.z);
 //			Vector3d north = Vector3d.Exclude(up, new Vector3d(0, 1, 0)).normalized;
@@ -273,7 +273,7 @@ namespace ProceduralCities
 		#region Interface to Planet
 		protected override List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
 		{
-			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
 			List<Pair<double, int>> ret = new List<Pair<double, int>>(coords.Count);
 
 
@@ -318,7 +318,7 @@ namespace ProceduralCities
 
 		protected override void Log(string message)
 		{
-			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
 			PlanetDatabase.Log(message);
 		}
 		#endregion

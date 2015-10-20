@@ -16,5 +16,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)Pathfinding.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Bezier.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Icosphere.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DebugUtils.cs" />
   </ItemGroup>
 </Project>

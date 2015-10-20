@@ -19,7 +19,7 @@ namespace ProceduralCities
 
 		private RoadSegment(CelestialBody body, List<Vector3d> coordinates, List<Vector3d> normals, double width)
 		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			UnloadDistance = float.MaxValue;
 			VisibleDistance = 40000f;
 			Planet = body.name;
@@ -34,7 +34,7 @@ namespace ProceduralCities
 
 		protected override void Initialize()
 		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			gameObject = new GameObject();
 			meshFilter = gameObject.AddComponent<MeshFilter>();
 			renderer = gameObject.AddComponent<MeshRenderer>();
@@ -90,7 +90,7 @@ namespace ProceduralCities
 
 		void UpdateMesh(IEnumerable<Vector3> vertices, IEnumerable<int> triangles, IEnumerable<Vector2> uv)
 		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 
 			mesh.Clear();
 
@@ -124,14 +124,14 @@ namespace ProceduralCities
 
 			normal.Add(Vector3d.Cross(points[n - 2] + points[n - 1], points[n - 2] - points[n - 1]).normalized);
 
-			System.Diagnostics.Debug.Assert(normal.Count == points.Count);
+			DebugUtils.Assert(normal.Count == points.Count);
 
 			return normal;
 		}
 
 		public static void MakeSegments(CelestialBody body, Bezier road, double segmentLength = 5000, double width = 40)
 		{
-			System.Diagnostics.Debug.Assert(!PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
 
 			double radius = body.Radius;
 			double triangleLength = width;

@@ -32,8 +32,8 @@ namespace ProceduralCities
 						initialized = true;
 					}
 
-					System.Diagnostics.Debug.Assert(gameObject != null);
-					System.Diagnostics.Debug.Assert(gameObject.GetComponent<MeshRenderer>() != null);
+					DebugUtils.Assert(gameObject != null);
+					DebugUtils.Assert(gameObject.GetComponent<MeshRenderer>() != null);
 
 					gameObject.SetActive(true);
 

@@ -11,17 +11,17 @@ namespace ProceduralCities
 			var net = new StreetNetwork();
 //			net.DrawPopulation("Population.png");
 //			net.DrawHeightMap("Map.png");
-			net.DrawRoadTensor("RoadTensor.png");
+//			net.DrawRoadTensor("RoadTensor.png");
 
-			for (double x = 0.1; x < 2.5; x += 0.2)
-			{
-				for (double y = 0.1; y < 2.5; y += 0.2)
-				{
-					net.BuildRoad(x, y, true);
-				}
-			}
+//			for (double x = 0.1; x < 2.5; x += 0.2)
+//			{
+//				for (double y = 0.1; y < 2.5; y += 0.2)
+//				{
+//					net.BuildRoad(x, y, true);
+//				}
+//			}
 
-			net.DrawRoadNetwork("Roads.png");
+//			net.DrawRoadNetwork("Roads.png");
 		}
 	}
 
@@ -33,32 +33,42 @@ namespace ProceduralCities
 		{
 			return String.Format("StreetNode({0:F3}, {1:F3})", x, y);
 		}
+
+		public static double Distance(StreetNode n1, double x, double y)
+		{
+			return Math.Sqrt((n1.x - x) * (n1.x - x) + (n1.y - y) * (n1.y - y));
+		}
+
+		public static double Distance(StreetNode n1, StreetNode n2)
+		{
+			return Math.Sqrt((n1.x - n2.x) * (n1.x - n2.x) + (n1.y - n2.y) * (n1.y - n2.y));
+		}
 	}
 
-	struct Street
+	struct StreetSegment
 	{
 		public int node1;
 		public int node2;
-		public bool major;
+		public int generation;
 	}
 
 	class StreetNetwork
 	{
-		SimplexNoise population;
-		SimplexNoise heightMap;
-		SimplexNoise roadTensorX;
-		SimplexNoise roadTensorY;
 		List<StreetNode> nodes = new List<StreetNode>();
-		List<Street> streets = new List<Street>();
+		List<StreetSegment> streets = new List<StreetSegment>();
 
-		public double Distance(StreetNode n1, StreetNode n2)
+		public double Distance(StreetSegment s, StreetNode n)
 		{
-			return Math.Sqrt((n1.x - n2.x) * (n1.x - n2.x) + (n1.y - n2.y) * (n1.y - n2.y));
-		}
+			StreetNode n1 = nodes[s.node1];
+			StreetNode n2 = nodes[s.node2];
+			double lambda = ((n.x - n1.x) * (n2.x - n1.x) + (n.y - n1.y) * (n2.y - n1.y)) / ((n2.x - n1.x) * (n2.x - n1.x) + (n2.y - n1.y) * (n2.y - n1.y));
 
-		public double Distance(StreetNode n1, double x, double y)
-		{
-			return Math.Sqrt((n1.x - x) * (n1.x - x) + (n1.y - y) * (n1.y - y));
+			if (lambda < 0)
+				lambda = 0;
+			else if (lambda > 1)
+				lambda = 1;
+
+			return StreetNode.Distance(n, n1.x + lambda * (n2.x - n1.x), n1.y + lambda * (n2.y - n1.y));
 		}
 
 		public int FindClosestNode(double x, double y)
@@ -90,32 +100,15 @@ namespace ProceduralCities
 
 		public StreetNetwork()
 		{
-			population = new SimplexNoise(0, 0.5, 2, 0.1, 1);
-			heightMap = new SimplexNoise(1, 0.5, 2, 0.03, 1);
-			roadTensorX = new SimplexNoise(2, 0.5, 2, 0.03, 1);
-			roadTensorY = new SimplexNoise(3, 0.5, 2, 0.03, 1);
 		}
 
-		public double GetPopulation(double x, double y)
+//		public void Add
+
+		public void BuildRoads()
 		{
-			if (GetHeight(x, y) < 0)
-				return 0;
-			
-			return Math.Abs(population.Generate(x, y, 0, 8));
 		}
 
-		public double GetHeight(double x, double y)
-		{
-			return heightMap.Generate(x, y, 0, 6);
-		}
-
-		public void GetTensor(double x, double y, out double Tx, out double Ty)
-		{
-			Tx = roadTensorX.Generate(x, y, 0, 8);
-			Ty = roadTensorY.Generate(x, y, 0, 8);
-		}
-
-		public void DrawPopulation(string filename)
+		/*public void DrawPopulation(string filename)
 		{
 			byte[] data = new byte[width * height * 4];
 			Palette palette = Palette.PopulationMap();
@@ -140,9 +133,9 @@ namespace ProceduralCities
 				Console.WriteLine("Min value: {0}", minValue);
 				Console.WriteLine("Max value: {0}", maxValue);
 			}
-		}
+		}*/
 
-		public void DrawHeightMap(string filename)
+		/*public void DrawHeightMap(string filename)
 		{
 			byte[] data = new byte[width * height * 4];
 			Palette palette = Palette.HeightMap();
@@ -176,9 +169,9 @@ namespace ProceduralCities
 				Console.WriteLine("Min value: {0}", minValue);
 				Console.WriteLine("Max value: {0}", maxValue);
 			}
-		}
+		}*/
 
-		public void DrawRoadTensor(string filename)
+		/*public void DrawRoadTensor(string filename)
 		{
 			using (var surface = new ImageSurface(Format.RGB24, width, height))
 			{
@@ -214,9 +207,9 @@ namespace ProceduralCities
 				}
 				surface.WriteToPng(filename);
 			}
-		}
+		}*/
 
-		public void DrawRoadNetwork(string filename)
+		/*public void DrawRoadNetwork(string filename)
 		{
 			Console.WriteLine("{0} nodes, {1} segments", nodes.Count, streets.Count);
 			using (var surface = new ImageSurface(Format.RGB24, width, height))
@@ -260,9 +253,9 @@ namespace ProceduralCities
 				}
 				surface.WriteToPng(filename);
 			}
-		}
+		}*/
 
-		public StreetNode NextStreetNode(StreetNode node, bool major)
+		/*public StreetNode NextStreetNode(StreetNode node, bool major)
 		{
 			double x1, y1;
 
@@ -290,9 +283,9 @@ namespace ProceduralCities
 			ret.y = node.y + 0.05*dy/d;
 
 			return ret;
-		}
+		}*/
 
-		public void BuildRoad(double x0, double y0, bool major)
+		/*public void BuildRoad(double x0, double y0, bool major)
 		{
 			int idx = FindClosestNode(x0, y0);
 
@@ -311,9 +304,9 @@ namespace ProceduralCities
 			}
 
 			BuildRoad(idx, major);
-		}
+		}*/
 
-		public void BuildRoad(int initialNode, bool major)
+		/*public void BuildRoad(int initialNode, bool major)
 		{
 			Street s;
 			while (true)
@@ -349,74 +342,6 @@ namespace ProceduralCities
 
 				initialNode = newNodeIdx;
 			}
-		}
-
-//		public static void Main(string[] args)
-//		{
-//			int width = 800;
-//			int height = 800;
-//			double scale = 0.003;
-//			string filename = "out.png";
-//
-//			for (int i = 0; i < args.Length; i++)
-//			{
-//				switch (args[i])
-//				{
-//				case "-w":
-//					int.TryParse(args[++i], out width);
-//					break;
-//
-//				case "-h":
-//					int.TryParse(args[++i], out height);
-//					break;
-//
-//				case "-scale":
-//					double.TryParse(args[++i], out scale);
-//					break;
-//				}
-//			}
-//
-//
-//			byte[] data = new byte[width * height * 4];
-//
-//			/*for (int i = 0; i < height; i++)
-//			{
-//				int index = i * width * 4;
-//				for (int j = 0; j < width; j++)
-//				{
-//					double x = i * scale;
-//					double y = j * scale;
-//
-//					double value = Math.Abs(noise.Generate(x, y, 0, 8)) * 32;
-//					data[index + j * 4] = (byte)value;
-//				}
-//			}*/
-//
-//			using(var surface = new ImageSurface(data, Format.RGB24, width, height, width * 4))
-//			{
-//				using (var ctx = new Context(surface))
-//				{
-//					/*ctx.SetSourceColor(new Color(0, 1, 0));
-//					ctx.MoveTo(0, 0);
-//					ctx.LineTo(width, 0);
-//					ctx.LineTo(width, height);
-//					ctx.LineTo(0, height);
-//					ctx.Fill();*/
-//
-//					/*surface.Flush();
-//					byte[] data = surface.Data;
-//					for (int i = 0; i < data.Length; i += 4)
-//					{
-//						data[i] = 255;
-//						data[i+1] = 255;
-//						data[i+2] = 255;
-//						data[i+3] = 255;
-//					}
-//
-//					surface.MarkDirty();*/
-//				}
-//				surface.WriteToPng(filename);
-//			}
-//		}
+		}*/
 	}
 }

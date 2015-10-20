@@ -69,7 +69,7 @@ namespace ProceduralCities
 
 		public void UpdateMesh()
 		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			List<Vector3> vertices = new List<Vector3>();
 			List<int> triangles = new List<int>();
 			List<Color32> colors = new List<Color32>();

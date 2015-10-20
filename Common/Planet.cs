@@ -427,7 +427,7 @@ namespace ProceduralCities
 					}
 					r.Add(k);
 
-					System.Diagnostics.Debug.Assert(r.All(x => r.Count(y => x == y) == 1));
+					DebugUtils.Assert(r.All(x => r.Count(y => x == y) == 1));
 
 					Roads.Add(r);
 				}

@@ -34,7 +34,7 @@ namespace ProceduralCities
 
 		public void UpdateVisibleObjects()
 		{
-			System.Diagnostics.Debug.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			var position = sphere.gameObject.transform.InverseTransformPoint(sphere.target.transform.position);
 			Coordinates coord = new Coordinates(position.x, position.y, position.z);
 

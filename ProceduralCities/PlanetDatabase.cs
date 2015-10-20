@@ -93,21 +93,21 @@ namespace ProceduralCities
 
 		public void AddWorldObject(WorldObject wo)
 		{
-			System.Diagnostics.Debug.Assert(IsMainThread);
+			DebugUtils.Assert(IsMainThread);
 			Instance.InhabitedBodies[wo.Body.name].worldObjects.Add(wo);
 		}
 
 		// InhabitedBodies must be locked
 		static void AddPlanet(KSPPlanet planet)
 		{
-			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+			DebugUtils.Assert(Instance.IsMainThread);
 			Instance.InhabitedBodies.Add(planet.Name, planet);
 			QueueToWorker(() =>  planet.Build());
 		}
 
 		public static KSPPlanet GetPlanet(string name)
 		{
-			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+			DebugUtils.Assert(Instance.IsMainThread);
 			KSPPlanet ret = null;
 			lock (Instance.InhabitedBodies)
 			{
@@ -118,7 +118,7 @@ namespace ProceduralCities
 
 		static KSPPlanet LoadFromCache(CelestialBody body)
 		{
-			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+			DebugUtils.Assert(Instance.IsMainThread);
 			string filename = PlanetDatabase.Instance.CacheDirectory + "/" + body.name + ".cache";
 
 			try
@@ -145,7 +145,7 @@ namespace ProceduralCities
 				Debug.Log("[ProceduralCities] Initializing planets");
 
 				var kerbinConfig = new ConfigNode("InhabitedBody");
-				kerbinConfig.name = "Kerbin";
+				kerbinConfig.AddValue("name", "Kerbin");
 				kerbinConfig.AddValue("seed", rand.Next());
 
 				var kerbin = new KSPPlanet(FlightGlobals.Bodies.Where(x => x.name == "Kerbin").First());
@@ -206,14 +206,14 @@ namespace ProceduralCities
 
 		static public void Log(string message)
 		{
-			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
+			DebugUtils.Assert(!Instance.IsMainThread);
 
 			QueueToMainThread(() => Debug.Log("[ProceduralCities] " + message.Replace("\n", "\n[ProceduralCities] ")));
 		}
 
 		static public void LogException(Exception e)
 		{
-			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
+			DebugUtils.Assert(!Instance.IsMainThread);
 			QueueToMainThread(() =>
 			{
 				Debug.LogException(e);
@@ -252,7 +252,7 @@ namespace ProceduralCities
 
 		static void QueueToWorker(Action act)
 		{
-			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+			DebugUtils.Assert(Instance.IsMainThread);
 			Monitor.Enter(Instance.WorkerQueue);
 			try
 			{
@@ -267,7 +267,7 @@ namespace ProceduralCities
 
 		static void ClearAndQueueToWorker(Action act)
 		{
-			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+			DebugUtils.Assert(Instance.IsMainThread);
 			Monitor.Enter(Instance.WorkerQueue);
 			try
 			{
@@ -283,7 +283,7 @@ namespace ProceduralCities
 
 		static void DequeueFromWorker(int timeout = int.MaxValue, bool wait = false)
 		{
-			System.Diagnostics.Debug.Assert(Instance.IsMainThread);
+			DebugUtils.Assert(Instance.IsMainThread);
 			var watch = System.Diagnostics.Stopwatch.StartNew();
 
 			Monitor.Enter(Instance.MainThreadQueue);
@@ -327,7 +327,7 @@ namespace ProceduralCities
 
 		public static void QueueToMainThread(Action act)
 		{
-			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
+			DebugUtils.Assert(!Instance.IsMainThread);
 
 			Monitor.Enter(Instance.MainThreadQueue);
 			try
@@ -343,7 +343,7 @@ namespace ProceduralCities
 
 		public static void QueueToMainThreadSync(Action act)
 		{
-			System.Diagnostics.Debug.Assert(!Instance.IsMainThread);
+			DebugUtils.Assert(!Instance.IsMainThread);
 			object monitor = new object();
 			bool finished = false;
 			bool error = false;
@@ -390,7 +390,7 @@ namespace ProceduralCities
 		void StartWorker()
 		{
 			Debug.Log("[ProceduralCities] Starting worker thread");
-			System.Diagnostics.Debug.Assert(Worker == null);
+			DebugUtils.Assert(Worker == null);
 			Worker = new Thread(DoWork);
 			WorkerQuitRequested = false;
 			Worker.Start();
@@ -399,8 +399,8 @@ namespace ProceduralCities
 		void StopWorker()
 		{
 			Debug.Log("[ProceduralCities] Stopping worker thread");
-			System.Diagnostics.Debug.Assert(Worker != null);
-			System.Diagnostics.Debug.Assert(IsMainThread);
+			DebugUtils.Assert(Worker != null);
+			DebugUtils.Assert(IsMainThread);
 
 			ClearAndQueueToWorker(() => WorkerQuitRequested = true);
 
