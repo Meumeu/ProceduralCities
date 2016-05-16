@@ -2,7 +2,6 @@ KSPDIR  ?= ${HOME}/.local/share/Steam/SteamApps/common/Kerbal\ Space\ Program
 MANAGED := ${KSPDIR}/KSP_Data/Managed/
 
 SOURCEFILES := $(wildcard ProceduralCities/*.cs) $(wildcard Common/*.cs) $(wildcard ProceduralCities/WorldObjects/*.cs)
-
 RESGEN2 := resgen2
 GMCS    ?= mcs
 GIT     := git
@@ -32,16 +31,17 @@ info:
 build/%.dll: ${SOURCEFILES}
 	mkdir -p build
 	${GMCS} -t:library -lib:${MANAGED} \
-		-r:Assembly-CSharp,Assembly-CSharp-firstpass,UnityEngine \
+		-r:Assembly-CSharp,Assembly-CSharp-firstpass,UnityEngine,KSPUtil \
 		${DEBUG} \
 		-out:$@ \
 		${SOURCEFILES}
+#		-resource:ProceduralCities/Resources/AlphaUnlitVertexColored.txt,ProceduralCities.Resources.AlphaUnlitVertexColored.txt
+
 
 
 package: build/ProceduralCities.dll
 	mkdir -p package/ProceduralCities
 	cp -r Assets package/ProceduralCities/
-#	cp -r SampleWebUI/* package/ProceduralCities/www/
 	cp $< package/ProceduralCities/
 
 %.zip:

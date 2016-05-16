@@ -8,10 +8,20 @@ namespace ProceduralCities
 		public float UnloadDistance;
 		public float VisibleDistance;
 		public Coordinates Position;
-		public string Planet;
-		public CelestialBody Body;
+		//public readonly string Planet;
+		public readonly CelestialBody Body;
 		protected GameObject gameObject;
 		bool initialized;
+
+		protected MeshRenderer Renderer
+		{
+			get { return gameObject.GetComponent<MeshRenderer>(); }
+		}
+
+		protected MeshCollider Collider
+		{
+			get { return gameObject.GetComponent<MeshCollider>(); }
+		}
 
 		public bool visible
 		{
@@ -33,15 +43,15 @@ namespace ProceduralCities
 					}
 
 					DebugUtils.Assert(gameObject != null);
-					DebugUtils.Assert(gameObject.GetComponent<MeshRenderer>() != null);
+					DebugUtils.Assert(Renderer != null);
 
 					gameObject.SetActive(true);
 
-					if (gameObject.GetComponent<MeshRenderer>() != null)
-						gameObject.GetComponent<MeshRenderer>().enabled = value;
+					if (Renderer != null)
+						Renderer.enabled = value;
 					
-					if (gameObject.GetComponent<MeshCollider>() != null)
-						gameObject.GetComponent<MeshCollider>().enabled = value;
+					if (Collider != null)
+						Collider.enabled = value;
 					
 				}
 				else
@@ -52,8 +62,11 @@ namespace ProceduralCities
 			}
 		}
 
-		public WorldObject()
+		public WorldObject(CelestialBody body)
 		{
+			Body = body;
+			UnloadDistance = float.MaxValue;
+			VisibleDistance = 40000f;
 		}
 
 		public abstract void Destroy();

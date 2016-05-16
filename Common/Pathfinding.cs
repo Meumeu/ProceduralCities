@@ -105,17 +105,17 @@ namespace ProceduralCities
 			return Coordinates.Distance(planet.Vertices[node1].coord, planet.Vertices[node2].coord) * radius + EdgeCost(node1, node2) * TerrainCost;
 		}
 
-		public static Int64 stat_nbAstar = 0;
-		public static Int64 stat_timeAstar = 0;
+		static Int64 stat_nbAstar = 0;
+		static Int64 stat_timeAstar = 0;
 
-		public static void PrintStats()
+		public static string Stats()
 		{
-			Console.WriteLine("Average time: " + (((double)stat_timeAstar) / ((double)stat_nbAstar)));
+			return string.Format("Pathfinder stats: number of calls: {0}, average time: {1} ms", stat_nbAstar, (((double)stat_timeAstar) / ((double)stat_nbAstar)));
 		}
 
 		void AStar(int target, int origin, double TerrainCost)
 		{
-			double radius = planet.Radius();
+			double radius = planet.Radius;
 
 			// Unvisited nodes at the border
 			var open_set = new Queue();
@@ -165,7 +165,7 @@ namespace ProceduralCities
 
 		void Dijkstra(IEnumerable<int> targets, double TerrainCost)
 		{
-			double radius = planet.Radius();
+			double radius = planet.Radius;
 
 			// Unvisited nodes at the border
 			var unvisited = new Queue();

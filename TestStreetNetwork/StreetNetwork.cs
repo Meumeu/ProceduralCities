@@ -5,23 +5,15 @@ using Cairo;
 
 namespace ProceduralCities
 {
-	class StreetNodeList
-	{
-	}
-
 	class StreetNode
 	{
-		public double x;
-		public double y;
+		public readonly double x;
+		public readonly double y;
 
 		public StreetNode(double x, double y)
 		{
 			this.x = x;
 			this.y = y;
-		}
-
-		public StreetNode()
-		{
 		}
 
 		public override string ToString()
@@ -36,6 +28,7 @@ namespace ProceduralCities
 		public StreetNode node2;
 		public int generation;
 		public bool stop;
+		public int parent;
 
 		public override string ToString()
 		{
@@ -45,7 +38,6 @@ namespace ProceduralCities
 
 	class StreetNetwork
 	{
-		//List<StreetNode> nodes = new List<StreetNode>();
 		List<StreetSegment> segments = new List<StreetSegment>();
 		SortedDictionary<int, Queue<StreetSegment>> candidates = new SortedDictionary<int, Queue<StreetSegment>>();
 
@@ -61,6 +53,20 @@ namespace ProceduralCities
 				lambda = 1;
 
 			return Distance(n, n1.x + lambda * (n2.x - n1.x), n1.y + lambda * (n2.y - n1.y));
+		}
+
+		public static double Angle(StreetSegment s1, StreetSegment s2)
+		{
+			StreetNode n1 = s1.node1;
+			StreetNode n2 = s1.node2;
+			StreetNode n3 = s2.node1;
+			StreetNode n4 = s2.node2;
+			double x1 = n1.x - n2.x;
+			double x2 = n3.x - n4.x;
+			double y1 = n1.y - n2.y;
+			double y2 = n3.y - n4.y;
+			double dot = (x1 * x2 + y1 * y2) / Math.Sqrt((x1 * x1 + y1 * y1) * (x2 * x2 + y2 * y2));
+			return Math.Acos(Math.Abs(dot));
 		}
 
 		public static double Distance(StreetNode n1, double x, double y)
@@ -133,10 +139,7 @@ namespace ProceduralCities
 			}
 			else
 			{
-				StreetNode n = new StreetNode();
-				n.x = x;
-				n.y = y;
-				return n;
+				return new StreetNode(x, y);
 			}
 		}
 
@@ -161,6 +164,7 @@ namespace ProceduralCities
 			if (segment.generation > 4)
 				return false;
 
+			// Stop the segment if it intersects another segment
 			double intersecting_lambda = 0;
 			double intersecting_mu = 1;
 			int intersecting_segment = -1;
@@ -174,18 +178,9 @@ namespace ProceduralCities
 						intersecting_segment = i;
 						intersecting_lambda = lambda;
 						intersecting_mu = mu;
+						segment.stop = true;
 					}
 				}
-			}
-
-			if (intersecting_segment >= 0)
-			{
-				SplitSegment(segments[intersecting_segment], intersecting_lambda, 0.1);
-				segment.node2 = FindOrCreateNode(
-					segment.node1.x + (segment.node2.x - segment.node1.x) * intersecting_mu,
-					segment.node1.y + (segment.node2.y - segment.node1.y) * intersecting_mu,
-					0.1);
-				segment.stop = true;
 			}
 
 			StreetNode closest = FindClosestNode(segment.node2);
@@ -195,15 +190,40 @@ namespace ProceduralCities
 				segment.stop = true;
 			}
 
-			return Distance(segment.node1, segment.node2) > 5
+			var ok = Distance(segment.node1, segment.node2) > 5
 				&& Distance(segment.node1, new StreetNode(0,0)) < 1000
 				&& Distance(segment.node2, new StreetNode(0,0)) < 1000;
+
+			for (int i = 0, n = segments.Count; i < n; i++)
+			{
+				if ((Distance(segments[i], segment.node1) < 0.1 && Distance(segments[i], segment.node2) < 0.1) && Angle(segments[i], segment) < 0.1 && i != segment.parent)
+					ok = false;
+			}
+
+			if (intersecting_segment >= 0)
+			{
+				if (Angle(segment, segments[intersecting_segment]) < Math.PI / 6)
+					ok = false;
+			}
+
+			// If the current segment intersects another segment, split it
+			if (intersecting_segment >= 0 && ok)
+			{
+				SplitSegment(segments[intersecting_segment], intersecting_lambda, 0.1);
+				segment.node2 = FindOrCreateNode(
+					segment.node1.x + (segment.node2.x - segment.node1.x) * intersecting_mu,
+					segment.node1.y + (segment.node2.y - segment.node1.y) * intersecting_mu,
+					0.1);
+			}
+
+			return ok;
 		}
 
 		Random rnd = new Random();
 		// Add candidate segments
-		void GlobalGoals(StreetSegment segment, int t)
+		void GlobalGoals(int idx, int t)
 		{
+			StreetSegment segment = segments[idx];
 			if (segment.stop)
 				return;
 
@@ -219,6 +239,7 @@ namespace ProceduralCities
 			seg.node2 = FindOrCreateNode(x + dx, y + dy, 0.1);
 			seg.generation = segment.generation;
 			seg.stop = false;
+			seg.parent = idx;
 			PushCandidate(t + 1, seg);
 
 			// Branch secondary roads
@@ -227,6 +248,7 @@ namespace ProceduralCities
 			seg.node2 = FindOrCreateNode(x + dy, y - dx, 0.1);
 			seg.generation = segment.generation + 1;
 			seg.stop = false;
+			seg.parent = idx;
 			PushCandidate(t + 1, seg);
 
 			seg = new StreetSegment();
@@ -234,6 +256,7 @@ namespace ProceduralCities
 			seg.node2 = FindOrCreateNode(x - dy, y + dx, 0.1);
 			seg.generation = segment.generation + 1;
 			seg.stop = false;
+			seg.parent = idx;
 			PushCandidate(t + 1, seg);
 		}
 
@@ -280,9 +303,10 @@ namespace ProceduralCities
 			seg.node2 = FindOrCreateNode(x2, y2, 1);
 			seg.generation = 0;
 			seg.stop = false;
+			seg.parent = -1;
 
 			segments.Add(seg);
-			GlobalGoals(seg, 0);
+			GlobalGoals(segments.Count - 1, 0);
 		}
 
 		public void BuildRoads()
@@ -294,7 +318,7 @@ namespace ProceduralCities
 				if (LocalConstraints(ref seg))
 				{
 					segments.Add(seg);
-					GlobalGoals(seg, t);
+					GlobalGoals(segments.Count - 1, t);
 				}
 			}
 		}
@@ -404,6 +428,8 @@ namespace ProceduralCities
 						ctx.MoveTo(n1.x / scale + width / 2, n1.y / scale + height / 2);
 						ctx.LineTo(n2.x / scale + width / 2, n2.y / scale + height / 2);
 						ctx.Stroke();
+
+						Console.WriteLine("{0};{1};{2};{3};{4}", n1.x, n1.y, n2.x, n2.y, s.generation);
 					}
 				}
 				surface.WriteToPng(filename);

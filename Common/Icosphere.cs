@@ -101,7 +101,7 @@ namespace ProceduralCities
 			vertices[bc].Triangles.Add(index + 3);
 		}
 
-		void Split(Triangle tri, int level)
+		/*void Split(Triangle tri, int level)
 		{
 			if (tri.level >= level)
 				return;
@@ -124,7 +124,7 @@ namespace ProceduralCities
 			{
 				Split(triangles[i], level);
 			}
-		}
+		}*/
 
 		int AddVertex(double x, double y, double z)
 		{
@@ -166,10 +166,10 @@ namespace ProceduralCities
 
 			foreach (var i in vertices[v].Triangles)
 			{
-				if (!(triangles[i].a == v || triangles[i].b == v || triangles[i].c == v)) throw new Exception("oops1");
-				if (!(vertices[triangles[i].a].Triangles.Contains(i))) throw new Exception("oops2");
-				if (!(vertices[triangles[i].b].Triangles.Contains(i))) throw new Exception("oops3");
-				if (!(vertices[triangles[i].c].Triangles.Contains(i))) throw new Exception("oops4");
+				DebugUtils.Assert((triangles[i].a == v || triangles[i].b == v || triangles[i].c == v));
+				DebugUtils.Assert((vertices[triangles[i].a].Triangles.Contains(i)));
+				DebugUtils.Assert((vertices[triangles[i].b].Triangles.Contains(i)));
+				DebugUtils.Assert((vertices[triangles[i].c].Triangles.Contains(i)));
 
 				if (triangles[i].Children != null)
 					continue;

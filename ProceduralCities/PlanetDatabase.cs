@@ -3,29 +3,26 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
+using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
 
 namespace ProceduralCities
 {
 	public class PlanetDatabase
 	{
-
-		static PlanetDatabase _instance;
 		public int Seed;
 		GameScenes CurrentScene;
 
-		internal Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
-
-		Thread Worker;
-		Queue<Action> MainThreadQueue = new Queue<Action>();
-		Queue<Action> WorkerQueue = new Queue<Action>();
+		Dictionary<string, KSPPlanet> InhabitedBodies = new Dictionary<string, KSPPlanet>();
 
 		CelestialBody lastPlanet;
-		CelestialBody lastCameraPlanet;
 		Coordinates lastCoordinates;
 		bool PhysicsReady;
-		bool WorkerQuitRequested;
 
+
+		public readonly string CacheDirectory;
+
+		static PlanetDatabase _instance;
 		public static PlanetDatabase Instance
 		{
 			get
@@ -45,16 +42,13 @@ namespace ProceduralCities
 			}
 		}
 
-		Thread MainThread;
-		public bool IsMainThread
+		public CelestialBody CurrentPlanet
 		{
 			get
 			{
-				return Thread.CurrentThread.Equals(MainThread);
+				return (CurrentScene == GameScenes.SPACECENTER || CurrentScene == GameScenes.FLIGHT) ? FlightGlobals.currentMainBody : null;
 			}
 		}
-
-		public readonly string CacheDirectory;
 
 		public PlanetDatabase()
 		{
@@ -67,24 +61,29 @@ namespace ProceduralCities
 			if (!Directory.Exists(CacheDirectory))
 				Directory.CreateDirectory(CacheDirectory);
 
-			MainThread = Thread.CurrentThread;
-
-			GameEvents.onLevelWasLoaded.Add(onLevelWasLoaded);
-			StartWorker();
+			GameEvents.onLevelWasLoaded.Add(LevelWasLoaded);
+			new ThreadDispatcher();
 		}
 
-		private void onLevelWasLoaded(GameScenes scene)
+		private void LevelWasLoaded(GameScenes scene)
 		{
 			CurrentScene = scene;
 
 			if (scene == GameScenes.MAINMENU)
 			{
-				GameEvents.onLevelWasLoaded.Remove(onLevelWasLoaded);
+				GameEvents.onLevelWasLoaded.Remove(LevelWasLoaded);
 
-				StopWorker();
-				foreach (var i in InhabitedBodies)
+				ThreadDispatcher.Destroy();
+
+				List<KSPPlanet> planets;
+				lock (InhabitedBodies)
 				{
-					i.Value.Destroy();
+					planets = InhabitedBodies.Select(x => x.Value).ToList();
+				}
+
+				foreach (var i in planets)
+				{
+					i.Destroy();
 				}
 
 				_instance = null;
@@ -93,21 +92,27 @@ namespace ProceduralCities
 
 		public void AddWorldObject(WorldObject wo)
 		{
-			DebugUtils.Assert(IsMainThread);
-			Instance.InhabitedBodies[wo.Body.name].worldObjects.Add(wo);
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
+			GetPlanet(wo.Body.name).Catalog.Add(wo);
 		}
 
-		// InhabitedBodies must be locked
-		static void AddPlanet(KSPPlanet planet)
+		void AddPlanet(KSPPlanet planet)
 		{
-			DebugUtils.Assert(Instance.IsMainThread);
-			Instance.InhabitedBodies.Add(planet.Name, planet);
-			QueueToWorker(() =>  planet.Build());
+			if (ThreadDispatcher.IsMainThread)
+			{
+				lock (InhabitedBodies)
+				{
+					InhabitedBodies.Add(planet.Body.name, planet);
+				}
+			}
+			else
+			{
+				ThreadDispatcher.QueueToMainThread(() => AddPlanet(planet));
+			}
 		}
 
 		public static KSPPlanet GetPlanet(string name)
 		{
-			DebugUtils.Assert(Instance.IsMainThread);
 			KSPPlanet ret = null;
 			lock (Instance.InhabitedBodies)
 			{
@@ -116,48 +121,77 @@ namespace ProceduralCities
 			return ret;
 		}
 
-		static KSPPlanet LoadFromCache(CelestialBody body)
+		KSPPlanet LoadFromCache(string name)
 		{
-			DebugUtils.Assert(Instance.IsMainThread);
-			string filename = PlanetDatabase.Instance.CacheDirectory + "/" + body.name + ".cache";
+			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
+			string filename = PlanetDatabase.Instance.CacheDirectory + "/" + name + ".planet";
 
 			try
 			{
+				KSPPlanet planet;
+				BinaryFormatter formatter = new BinaryFormatter();
 				using (Stream stream = new FileStream(filename, FileMode.Open, FileAccess.Read))
 				{
-					return new KSPPlanet(body, stream);
+					planet = (KSPPlanet)formatter.Deserialize(stream);
+				}
+				Utils.Log(string.Format("Loaded {0} from cache", name));
+				return planet;
+			}
+			catch(Exception e)
+			{
+				Utils.Log(string.Format("Cannot load {0} from cache: {1}", name, e.Message));
+				return null;
+			}
+		}
+
+		void SaveToCache(KSPPlanet planet)
+		{
+			string name = planet.Body.name;
+			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
+			string filename = PlanetDatabase.Instance.CacheDirectory + "/" + name + ".planet";
+
+			try
+			{
+				using (Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write))
+				{
+					BinaryFormatter formatter = new BinaryFormatter();
+					formatter.Serialize(stream, planet);
+					Utils.Log(string.Format("Saved {0} to cache", name));
 				}
 			}
 			catch(Exception e)
 			{
-				Debug.Log(string.Format("[ProceduralCities] Cannot load {0} from cache: {1}", body.name, e.Message));
+				Utils.Log(string.Format("Cannot save {0} to cache: {1}", name, e.Message));
 			}
-
-			return null;
 		}
 
 		public void Load(ConfigNode node)
 		{
 			if (node.GetNodes("INHABITED_BODY").Count() == 0)
 			{
-				var rand = new System.Random(Instance.Seed);
-
-				Debug.Log("[ProceduralCities] Initializing planets");
-
-				var kerbinConfig = new ConfigNode("InhabitedBody");
-				kerbinConfig.AddValue("name", "Kerbin");
-				kerbinConfig.AddValue("seed", rand.Next());
-
-				var kerbin = new KSPPlanet(FlightGlobals.Bodies.Where(x => x.name == "Kerbin").First());
-				kerbin.Load(kerbinConfig);
-
 				lock (Instance.InhabitedBodies)
 				{
 					Instance.InhabitedBodies.Clear();
-					AddPlanet(kerbin);
 				}
 
-				Debug.Log("[ProceduralCities] Done");
+				var rand = new System.Random(Instance.Seed);
+				int seed = rand.Next();
+				CelestialBody body = FlightGlobals.Bodies.Where(x => x.name == "Kerbin").First();
+
+				Utils.Log("Initializing planets (first time)");
+
+				var kerbinConfig = new ConfigNode("InhabitedBody");
+				kerbinConfig.AddValue("name", "Kerbin");
+				kerbinConfig.AddValue("seed", seed);
+
+				ThreadDispatcher.QueueToWorker(() =>
+				{
+					var kerbin = new KSPPlanet(body, seed);
+					SaveToCache(kerbin);
+					AddPlanet(kerbin);
+				});
+
+				Utils.Log("Done");
 			}
 			else
 			{
@@ -169,23 +203,31 @@ namespace ProceduralCities
 					}
 
 					Instance.InhabitedBodies.Clear();
-					foreach (ConfigNode n in node.GetNodes("INHABITED_BODY"))
+				}
+
+				Utils.Log("Initializing planets");
+				foreach (ConfigNode n in node.GetNodes("INHABITED_BODY"))
+				{
+					var body = FlightGlobals.Bodies.Where(x => x.name == n.GetValue("name")).First();
+					string name = body.name;
+					int seed = int.Parse(n.GetValue("seed"));
+					ThreadDispatcher.QueueToWorker(() =>
 					{
-						var body = FlightGlobals.Bodies.Where(x => x.name == n.GetValue("name")).First();
-						KSPPlanet planet = LoadFromCache(body);
+						KSPPlanet planet = LoadFromCache(name);
 
 						if (planet == null)
 						{
-							planet = new KSPPlanet(body);
-							planet.Load(n);
+							planet = new KSPPlanet(body, seed);
+							SaveToCache(planet);
 						}
-
+						
 						AddPlanet(planet);
-					}
+					});
 				}
+				Utils.Log("Done");
 			}
 
-			QueueToWorker(() => QueueToMainThread(() => PhysicsReady = true));
+			ThreadDispatcher.QueueToWorker(() => ThreadDispatcher.QueueToMainThread(() => PhysicsReady = true));
 		}
 
 		public void Save(ConfigNode node)
@@ -202,289 +244,50 @@ namespace ProceduralCities
 			}
 		}
 
-		#region Multithread stuff
-
-		static public void Log(string message)
-		{
-			DebugUtils.Assert(!Instance.IsMainThread);
-
-			QueueToMainThread(() => Debug.Log("[ProceduralCities] " + message.Replace("\n", "\n[ProceduralCities] ")));
-		}
-
-		static public void LogException(Exception e)
-		{
-			DebugUtils.Assert(!Instance.IsMainThread);
-			QueueToMainThread(() =>
-			{
-				Debug.LogException(e);
-			});
-		}
-
-		void DoWork()
-		{
-			Log("Worker thread started");
-			while(!WorkerQuitRequested)
-			{
-				Action act;
-				Monitor.Enter(WorkerQueue);
-				try
-				{
-					while(WorkerQueue.Count == 0)
-						Monitor.Wait(WorkerQueue);
-					act = WorkerQueue.Dequeue();
-				}
-				finally
-				{
-					Monitor.Exit(WorkerQueue);
-				}
-
-				try
-				{
-					act();
-				}
-				catch(Exception e)
-				{
-					Log("Exception during processing of request");
-					LogException(e);
-				}
-			}
-		}
-
-		static void QueueToWorker(Action act)
-		{
-			DebugUtils.Assert(Instance.IsMainThread);
-			Monitor.Enter(Instance.WorkerQueue);
-			try
-			{
-				Instance.WorkerQueue.Enqueue(act);
-				Monitor.Pulse(Instance.WorkerQueue);
-			}
-			finally
-			{
-				Monitor.Exit(Instance.WorkerQueue);
-			}
-		}
-
-		static void ClearAndQueueToWorker(Action act)
-		{
-			DebugUtils.Assert(Instance.IsMainThread);
-			Monitor.Enter(Instance.WorkerQueue);
-			try
-			{
-				Instance.WorkerQueue.Clear();
-				Instance.WorkerQueue.Enqueue(act);
-				Monitor.Pulse(Instance.WorkerQueue);
-			}
-			finally
-			{
-				Monitor.Exit(Instance.WorkerQueue);
-			}
-		}
-
-		static void DequeueFromWorker(int timeout = int.MaxValue, bool wait = false)
-		{
-			DebugUtils.Assert(Instance.IsMainThread);
-			var watch = System.Diagnostics.Stopwatch.StartNew();
-
-			Monitor.Enter(Instance.MainThreadQueue);
-			try
-			{
-				if (wait && Instance.MainThreadQueue.Count == 0)
-				{
-					while(Instance.MainThreadQueue.Count == 0)
-						Monitor.Wait(Instance.MainThreadQueue);
-
-					Action act = Instance.MainThreadQueue.Dequeue();
-					act();
-				}
-				else
-				{
-					while (Instance.MainThreadQueue.Count > 0 && watch.ElapsedMilliseconds < timeout)
-					{
-						Action act = Instance.MainThreadQueue.Dequeue();
-
-						Monitor.Exit(Instance.MainThreadQueue);
-						try
-						{
-							act();
-						}
-						finally
-						{
-							Monitor.Enter(Instance.MainThreadQueue);
-						}
-					}
-				}
-			}
-			catch(Exception e)
-			{
-				Debug.LogException(e);
-			}
-			finally
-			{
-				Monitor.Exit(Instance.MainThreadQueue);
-			}
-		}
-
-		public static void QueueToMainThread(Action act)
-		{
-			DebugUtils.Assert(!Instance.IsMainThread);
-
-			Monitor.Enter(Instance.MainThreadQueue);
-			try
-			{
-				Instance.MainThreadQueue.Enqueue(act);
-				Monitor.Pulse(Instance.MainThreadQueue);
-			}
-			finally
-			{
-				Monitor.Exit(Instance.MainThreadQueue);
-			}
-		}
-
-		public static void QueueToMainThreadSync(Action act)
-		{
-			DebugUtils.Assert(!Instance.IsMainThread);
-			object monitor = new object();
-			bool finished = false;
-			bool error = false;
-
-			QueueToMainThread(() =>
-			{
-				try
-				{
-					act();
-				}
-				catch(Exception)
-				{
-					Monitor.Enter(monitor);
-					error = true;
-					Monitor.Pulse(monitor);
-					Monitor.Exit(monitor);
-				}
-				finally
-				{
-					Monitor.Enter(monitor);
-					finished = true;
-					Monitor.Pulse(monitor);
-					Monitor.Exit(monitor);
-				}
-			});
-
-			Monitor.Enter(monitor);
-			try
-			{
-				while (!finished && !error)
-					Monitor.Wait(monitor);
-			}
-			finally
-			{
-				Monitor.Exit(monitor);
-			}
-
-			if (error)
-			{
-				// TODO
-			}
-		}
-
-		void StartWorker()
-		{
-			Debug.Log("[ProceduralCities] Starting worker thread");
-			DebugUtils.Assert(Worker == null);
-			Worker = new Thread(DoWork);
-			WorkerQuitRequested = false;
-			Worker.Start();
-		}
-
-		void StopWorker()
-		{
-			Debug.Log("[ProceduralCities] Stopping worker thread");
-			DebugUtils.Assert(Worker != null);
-			DebugUtils.Assert(IsMainThread);
-
-			ClearAndQueueToWorker(() => WorkerQuitRequested = true);
-
-			// Get the last log messages
-			DequeueFromWorker();
-
-			if (Worker.Join(5000))
-			{
-				Debug.Log("[ProceduralCities] Worker thread stopped");
-			}
-			else
-			{
-				Debug.Log("[ProceduralCities] Worker thread not stopped, aborting");
-				Worker.Abort();
-			}
-
-			Worker = null;
-		}
-
-		CelestialBody GetCameraPlanet()
-		{
-			if (HighLogic.LoadedSceneHasPlanetarium && MapView.MapIsEnabled)
-			{
-				var target = MapView.MapCamera.target;
-				if (target.type == MapObject.MapObjectType.CELESTIALBODY)
-					return target.celestialBody;
-				else if (target.type == MapObject.MapObjectType.MANEUVERNODE)
-					return target.maneuverNode.patch.referenceBody;
-				else if (target.type == MapObject.MapObjectType.VESSEL)
-					return target.vessel.mainBody;
-				else
-					return null;
-			}
-
-			return null;
-		}
-
 		public void Update()
 		{
-			CelestialBody current_planet = (CurrentScene == GameScenes.SPACECENTER || CurrentScene == GameScenes.FLIGHT) ? FlightGlobals.currentMainBody : null;
-			//CelestialBody camera_planet = GetCameraPlanet();
+			CelestialBody current_planet = CurrentPlanet;
 			Coordinates coord;
 
 			if (FlightGlobals.ActiveVessel == null)
 			{
-				coord = new Coordinates(-0.001788962483527778, -1.301584137981534); // KSC
+				coord = Coordinates.KSC;
 			}
 			else
 			{
 				coord = new Coordinates(FlightGlobals.ActiveVessel.latitude * Math.PI / 180, FlightGlobals.ActiveVessel.longitude * Math.PI / 180);
 			}
 
+			if (current_planet != lastPlanet && current_planet != null)
+			{
+				Utils.Log("Last planet: {0}, current planet: {1}", lastPlanet == null ? "(null)" : lastPlanet.name, current_planet.name);
+			}
+
 			// FIXME: only do this close to the ground?
 			if (current_planet != null && (current_planet != lastPlanet || Coordinates.Distance(coord, lastCoordinates) * current_planet.Radius > 1000))
 			{
+				Utils.Log("New position: {0}", coord);
 				lastPlanet = current_planet;
 				lastCoordinates = coord;
 				string planetName = current_planet.name;
-				KSPPlanet planet;
-				if (InhabitedBodies.TryGetValue(current_planet.name, out planet))
+				KSPPlanet planet = GetPlanet(current_planet.name);
+				if (planet != null)
 				{
-					QueueToWorker(() => planet.UpdatePosition(coord));
+					ThreadDispatcher.QueueToWorker(() => planet.UpdatePosition(coord));
 
-					planet.worldObjects.UpdateVisibleObjects();
+					planet.Catalog.UpdateVisibleObjects(coord);
 				}
 			}
 
-			/*if (camera_planet != null && camera_planet != lastCameraPlanet)
-			{
-				QueueToWorker(() => DoWork_PositionChanged(new RequestCameraChanged(camera_planet.name)));
-				lastCameraPlanet = camera_planet;
-			}*/
-
-			DequeueFromWorker(20);
+			ThreadDispatcher.DequeueFromWorker(20);
 		}
 
 		public void FixedUpdate()
 		{
 			while (!PhysicsReady && HighLogic.LoadedSceneIsFlight)
 			{
-				DequeueFromWorker(wait: true);
+				ThreadDispatcher.DequeueFromWorker(wait: true);
 			}
 		}
-
-		#endregion
 	}
 }

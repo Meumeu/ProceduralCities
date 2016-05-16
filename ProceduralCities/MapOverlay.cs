@@ -17,13 +17,11 @@ namespace ProceduralCities
 			{
 				_body = value;
 
-				var target = ScaledSpace.Instance.scaledSpaceTransforms.FirstOrDefault(t => t.name == _body.name);
-				gameObject.layer = target.gameObject.layer;
-				gameObject.transform.parent = target;
-				gameObject.transform.localScale = Vector3d.one * 1.01 * _body.Radius * ScaledSpace.InverseScaleFactor * 10;
+				gameObject.layer = value.scaledBody.gameObject.layer;
+				gameObject.transform.parent = value.scaledBody.transform;
+				gameObject.transform.localScale = Vector3d.one * 1.001 * _body.Radius * ScaledSpace.InverseScaleFactor * 10;
 				gameObject.transform.localPosition = Vector3.zero;
 				gameObject.transform.localRotation = Quaternion.identity;
-
 			}
 			get
 			{
@@ -51,22 +49,30 @@ namespace ProceduralCities
 			meshRenderer = gameObject.AddComponent<MeshRenderer>();
 			mesh = meshFilter.mesh;
 
-			meshRenderer.castShadows = false;
+			meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 			meshRenderer.receiveShadows = false;
 
-			var material = new Material(new System.IO.StreamReader(System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("ProceduralCities.Resources.AlphaUnlitVertexColored.txt")).ReadToEnd()); // TODO
-
-			var color = Color.white;
+			//var material = new Material(new System.IO.StreamReader(System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("ProceduralCities.Resources.AlphaUnlitVertexColored.txt")).ReadToEnd());
+			var material = new Material(Shader.Find("Sprite/Vertex Colored"));
+			/*var color = Color.white;
 			color.a = 0.4f;
-			material.color = color;
+			material.color = color;*/
 
-			renderer.material = material;
+			//renderer.material = material;
+			meshRenderer.material = material;
 
 			GameEvents.OnMapEntered.Add(OnMapEntered);
 			GameEvents.OnMapExited.Add(OnMapExited);
 			GameEvents.onLevelWasLoaded.Add(OnLevelWasLoaded);
 
 			OnMapVisibility();
+		}
+
+		void OnDestroy()
+		{
+			GameEvents.OnMapEntered.Remove(OnMapEntered);
+			GameEvents.OnMapExited.Remove(OnMapExited);
+			GameEvents.onLevelWasLoaded.Remove(OnLevelWasLoaded);
 		}
 
 		void OnLevelWasLoaded(GameScenes scene)
@@ -109,7 +115,7 @@ namespace ProceduralCities
 
 		protected void UpdateMesh(IEnumerable<Vector3> vertices, IEnumerable<int> triangles, IEnumerable<Color32> colors)
 		{
-			Debug.Log("[ProceduralCities] Updating map mesh");
+			Utils.Log("Updating map mesh");
 			UpdateMesh(vertices.ToArray(), triangles.ToArray(), colors.ToArray());
 		}
 

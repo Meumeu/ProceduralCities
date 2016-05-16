@@ -4,21 +4,28 @@ using UnityEngine;
 
 namespace ProceduralCities
 {
-	public class ContentCatalog : PQSMod
+	public class ContentCatalog
 	{
-		List<WorldObject> objects;
+		Octree objects = new Octree();
+		Coordinates LastPosition = Coordinates.KSC;
 
-		public ContentCatalog()
+		readonly double radius;
+
+		public ContentCatalog(CelestialBody body)
 		{
-			objects = new List<WorldObject>();
+			radius = body.Radius;
 		}
 
 		public void Add(WorldObject obj)
 		{
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
+
 			lock (objects)
 			{
 				objects.Add(obj);
 			}
+
+			//obj.visible = Coordinates.Distance(LastPosition, obj.Position) * sphere.radius < obj.VisibleDistance;
 		}
 
 		public int Count
@@ -32,22 +39,37 @@ namespace ProceduralCities
 			}
 		}
 
-		public void UpdateVisibleObjects()
+		public void UpdateVisibleObjects(Coordinates position)
 		{
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
-			var position = sphere.gameObject.transform.InverseTransformPoint(sphere.target.transform.position);
-			Coordinates coord = new Coordinates(position.x, position.y, position.z);
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
+			//var position = sphere.gameObject.transform.InverseTransformPoint(sphere.target.transform.position);
+			//LastPosition = new Coordinates(position.x, position.y, position.z);
+			LastPosition = position;
 
 			lock (objects)
 			{
-				foreach (var i in objects)
+				#if DEBUG
+				int n = 0;
+				int nbVisible = 0;
+				var watch = System.Diagnostics.Stopwatch.StartNew();
+				#endif
+				foreach (var i in objects.Find(LastPosition, 0.1))
 				{
-					i.visible = Coordinates.Distance(coord, i.Position) * sphere.radius < i.VisibleDistance;
+					i.visible = Coordinates.Distance(LastPosition, i.Position) * radius < i.VisibleDistance;
+					#if DEBUG
+					n++;
+					if (Coordinates.Distance(LastPosition, i.Position) * radius < i.VisibleDistance)
+						nbVisible++;
+					#endif
 				}
+
+				#if DEBUG
+				Utils.Log("UpdateVisibleObjects: considered {0} objects out of {1} in {2} ms, {3} visible", n, objects.Count, watch.ElapsedMilliseconds, nbVisible);
+				#endif
 			}
 		}
 
-		void DisableAllObjects()
+		/*void DisableAllObjects()
 		{
 			lock (objects)
 			{
@@ -58,40 +80,22 @@ namespace ProceduralCities
 			}
 		}
 
-		void Setup()
+		/*void Setup()
 		{
 		}
-
-		public override void OnSphereActive()
-		{
-			UpdateVisibleObjects();
-		}
-
-		public override void OnSphereInactive()
-		{
-			DisableAllObjects();
-		}
-
-		/*public override void OnSphereReset()
-		{
-			DisableAllObjects();
-		}
-
-		public override void OnSphereStart()
-		{
-			DisableAllObjects();
-		}*/
 
 		public override void OnUpdateFinished()
 		{
-			UpdateVisibleObjects();
+			//Utils.Log("OnUpdateFinished");
+			//UpdateVisibleObjects();
 		}
 
 		public override void OnSetup()
 		{
+			Utils.Log("OnSetup");
 			Setup();
 			DisableAllObjects();
-		}
+		}*/
 	}
 }
 

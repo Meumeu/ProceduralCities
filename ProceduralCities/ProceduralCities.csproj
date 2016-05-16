@@ -40,6 +40,12 @@
     <Reference Include="UnityEngine">
       <HintPath>..\..\..\KerbalSpaceProgram\KSP_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
+    <Reference Include="KSPUtil">
+      <HintPath>..\..\..\KerbalSpaceProgram\KSP_Data\Managed\KSPUtil.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>..\..\..\KerbalSpaceProgram\KSP_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -51,15 +57,16 @@
     <Compile Include="RoadOverlay.cs" />
     <Compile Include="WorldObjects\RoadSegment.cs" />
     <Compile Include="ContentCatalog.cs" />
-    <Compile Include="DebugUtils.cs" />
+    <Compile Include="ThreadDispatcher.cs" />
+    <Compile Include="PlanetExporter.cs" />
+    <Compile Include="WorldObjects\GrosCube.cs" />
+    <Compile Include="Octree.cs" />
+    <Compile Include="Utils.cs" />
   </ItemGroup>
   <Import Project="..\Common\Common.projitems" Label="Shared" Condition="Exists('..\Common\Common.projitems')" />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
     <Folder Include="WorldObjects\" />
     <Folder Include="Resources\" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\AlphaUnlitVertexColored.txt" />
   </ItemGroup>
 </Project>

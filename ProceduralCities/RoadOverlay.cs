@@ -69,7 +69,7 @@ namespace ProceduralCities
 
 		public void UpdateMesh()
 		{
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
 			List<Vector3> vertices = new List<Vector3>();
 			List<int> triangles = new List<int>();
 			List<Color32> colors = new List<Color32>();
@@ -92,13 +92,15 @@ namespace ProceduralCities
 					for (int j = 0, m = road.positions.Count - 1; j < m; j++)
 					{
 						triangles.AddRange(new[] {
-							index0 + 2 * j + 0, index0 + 2 * j + 1, index0 + 2 * j + 2,
-							index0 + 2 * j + 1, index0 + 2 * j + 3, index0 + 2 * j + 2
+							//index0 + 2 * j + 0, index0 + 2 * j + 1, index0 + 2 * j + 2,
+							//index0 + 2 * j + 1, index0 + 2 * j + 3, index0 + 2 * j + 2
+							index0 + 2 * j + 0, index0 + 2 * j + 2, index0 + 2 * j + 1,
+							index0 + 2 * j + 1, index0 + 2 * j + 2, index0 + 2 * j + 3
 						});
 					}
 				}
 
-				Debug.Log("[ProceduralCities] " + roads.Count + " roads, " + vertices.Count + " vertices, " + triangles.Count + " triangles");
+				Utils.Log("{0} roads, {1} vertices, {2} triangles", roads.Count, vertices.Count, triangles.Count);
 			}
 
 			UpdateMesh(vertices, triangles, colors);

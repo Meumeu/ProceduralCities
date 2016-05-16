@@ -1,286 +1,37 @@
 ﻿using System;
-using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading;
+using System.Runtime.Serialization;
 using UnityEngine;
 
 namespace ProceduralCities
 {
-	public class KSPPlanet : Planet
+	public class KSPTerrain : PlanetData
 	{
-		internal string Name
+		public readonly CelestialBody Body;
+		Planet.Biome[] biomeList;
+
+		public KSPTerrain(CelestialBody body)
 		{
-			get
-			{
-				return Body ? Body.name : "";
-			}
-		}
-
-		CelestialBody Body;
-
-		public GameObject roadOverlay;
-		public ContentCatalog worldObjects;
-
-		System.Diagnostics.Stopwatch watch;
-
-		public KSPPlanet(CelestialBody body)
-		{
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
-			Debug.Log("[ProceduralCities] Constructing KSPPlanet");
-			watch = System.Diagnostics.Stopwatch.StartNew();
-
-			Init(body);
-		}
-
-		const int SerializationFormat = 1;
-
-		public KSPPlanet(CelestialBody body, Stream stream)
-		{
-			BinaryReader reader = new BinaryReader(stream);
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
-			Debug.Log("[ProceduralCities] Deserializing KSPPlanet");
-			watch = System.Diagnostics.Stopwatch.StartNew();
-
-			int version = reader.ReadInt32();
-			if (version != SerializationFormat)
-				throw new Exception("wrong version: " + version + " instead of " + SerializationFormat);
-			
-			Read(reader);
-			Init(body);
-		}
-
-		void Write(Stream stream)
-		{
-			var writer = new BinaryWriter(stream);
-			writer.Write(SerializationFormat);
-			base.Write(writer);
-		}
-
-		void Init(CelestialBody body)
-		{
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
 			Body = body;
 
-			roadOverlay = new GameObject();
-			var ro = roadOverlay.AddComponent<RoadOverlay>();
-			ro.Body = Body;
-
-			worldObjects = body.pqsController.transform.GetComponentInChildren<ContentCatalog>();
-			if (worldObjects == null)
-			{
-				var go = new GameObject("ContentCatalog");
-				go.transform.parent = body.pqsController.transform;
-				worldObjects = go.AddComponent<ContentCatalog>();
-				worldObjects.order = int.MaxValue;
-				worldObjects.enabled = true;
-				worldObjects.sphere = body.pqsController;
-			}
-		}
-
-		public void Destroy()
-		{
-			GameObject.Destroy(roadOverlay);
-			GameObject.Destroy(worldObjects.gameObject);
-		}
-
-		public void Load(ConfigNode node)
-		{
-			DebugUtils.Assert(node.GetValue("name") == Name);
-
 			// FIXME: don't hardcode values
-			Biomes = Body.BiomeMap.Attributes.Select(x => new Biome() {
-				Name = x.name,
-				Desirability = x.name == "Ice Caps" ? 0.0 : x.name == "Water" ? 0.0 : x.name == "Deserts" ? 0.1 : 1.0
-			}).ToList();
-
-			try
-			{
-				Seed = int.Parse(node.GetValue("seed"));
-			}
-			finally
-			{
-			}
+			biomeList = Body.BiomeMap.Attributes.Select(x => new Planet.Biome(
+				x.name,
+				x.name == "Ice Caps" ? 0.0 : x.name == "Water" ? 0.0 : x.name == "Deserts" ? 0.1 : 1.0
+			)).ToArray();
 		}
 
-		public void Save(ConfigNode node)
+		public List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
 		{
-			node.AddValue("name", Name);
-			node.AddValue("seed", Seed);
-		}
-
-		/* GetTerrainHeight(double lat, double lon)
-		{
-			return Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(lat * 180 / Math.PI, lon * 180 / Math.PI)) - Body.Radius;
-		}
-
-		string GetBiomeName(double lat, double lon)
-		{
-			if (Body.BiomeMap == null)
-				return "";
-
-			return Body.BiomeMap.GetAtt(lat, lon).name;
-		}
-
-		int GetBiome(double lat, double lon)
-		{
-			if (Body.BiomeMap == null)
-				return -1;
-
-			var attr = Body.BiomeMap.GetAtt(lat, lon);
-			for (int i = 0, n = Body.BiomeMap.Attributes.Length; i < n; i++)
-			{
-				if (attr == Body.BiomeMap.Attributes[i])
-					return i;
-			}
-
-			Debug.Log("[ProceduralCities] Unknown biome ???");
-			return -1;
-		}*/
-
-		/*
-		public Texture2D GetHeightMap(double resolution)
-		{
-			if (body.pqsController == null)
-				return null;
-			
-			double minValue = double.MaxValue;
-			double maxValue = double.MinValue;
-
-			double[,] values = new double[(int)(360 * resolution), (int)(180 * resolution)];
-
-			for (int lon = 0; lon < 360 * resolution; lon++)
-			{
-				for (int lat = 0; lat < 180 * resolution; lat++)
-				{
-					double flon = (lon / resolution - 180) * Math.PI / 180.0;
-					double flat = (90 - lat / resolution) * Math.PI / 180.0;
-					values[lon, lat] = Math.Max(0, GetTerrainHeight(flon, flat));
-
-					if (lon % 50 == 0 && lat % 50 == 0)
-						Debug.Log("[ProceduralCities] Lon=" + (flon * 180 / Math.PI) + ", Lat=" + (flat * 180 / Math.PI) + ", alt=" + values[lon, lat]);
-
-					minValue = Math.Min(minValue, values[lon, lat]);
-					maxValue = Math.Max(maxValue, values[lon, lat]);
-				}
-			}
-
-			Debug.Log("[ProceduralCities] Min altitude: " + minValue);
-			Debug.Log("[ProceduralCities] Max altitude: " + maxValue);
-
-			return Utils.TextureFromArrayHeight(values, minValue, maxValue);
-		}*/
-
-		/*public void ExportData(int width, int height)
-		{
-			string dir = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-
-			using (BinaryWriter writer = new BinaryWriter(File.Open(dir + "/" + Name + ".dat", FileMode.Create)))
-			{
-				writer.Write(width);
-				writer.Write(height);
-				for (int i = 0; i < height; i++)
-				{
-					double lat = ((double)i / (double)height) * Math.PI - Math.PI / 2;
-					for (int j = 0; j < width; j++)
-					{
-						double lon = ((double)j / (double)width) * 2 * Math.PI - Math.PI;
-						writer.Write((float)GetTerrainHeight(lat, lon));
-					}
-				}
-
-				Dictionary<string, byte> biome_to_id = new Dictionary<string, byte>();
-				Dictionary<byte, string> id_to_biome = new Dictionary<byte, string>();
-
-				writer.Write(width);
-				writer.Write(height);
-				for (int i = 0; i < height; i++)
-				{
-					double lat = ((double)i / (double)height) * Math.PI  - Math.PI/2;
-					for (int j = 0; j < width; j++)
-					{
-						double lon = ((double)j / (double)width) * 2 * Math.PI - Math.PI;
-						string biome = GetBiomeName(lat, lon);
-						byte id;
-						if (!biome_to_id.TryGetValue(biome, out id))
-						{
-							id = (byte)biome_to_id.Count;
-							biome_to_id.Add(biome, id);
-							id_to_biome.Add(id, biome);
-						}
-
-						writer.Write(id);
-					}
-				}
-
-				for(byte i = 0; i < biome_to_id.Count; i++)
-				{
-					writer.Write(id_to_biome[i]);
-				}
-			}
-		}*/
-
-		protected override void BuildFinished(bool fromCache)
-		{
-			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
-			Log("Building road map overlay and roads");
-			var ro = roadOverlay.GetComponent<RoadOverlay>();
-
-			Color[] palette = new[] { Color.blue, Color.green, Color.red, Color.cyan, Color.magenta, Color.yellow };
-
-			int n = 0;
-			var tmp = System.Diagnostics.Stopwatch.StartNew();
-			foreach (var i in Roads)
-			{
-				Color32 c = palette[n % palette.Length];
-				n++;
-
-				var road = new Bezier(i.Select(x => Vertices[x].coord).ToList(), Body.Radius);
-				ro.Add(road.Rasterize(1000), new Color32(c.r, c.g, c.b, 128));
-
-				RoadSegment.MakeSegments(Body, road);
-			}
-
-			PlanetDatabase.QueueToMainThread(() => ro.UpdateMesh());
-
-			PlanetDatabase.QueueToMainThreadSync(() => {});
-			Log(string.Format("{0} road segments created in {1:F0} ms", PlanetDatabase.Instance.InhabitedBodies[Body.name].worldObjects.Count, tmp.ElapsedMilliseconds));
-			Log("Road overlay created");
-
-			Log("Planet built in " + watch.ElapsedMilliseconds + " ms");
-
-			if (!fromCache)
-			{
-				string filename = PlanetDatabase.Instance.CacheDirectory + "/" + Name + ".cache";
-				Log("Saving planet to " + filename);
-				using (Stream stream = new FileStream(filename, FileMode.Create, FileAccess.Write))
-				{
-					Write(stream);
-				}
-			}
-		}
-
-		public void UpdatePosition(Coordinates coord)
-		{
-			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
-
-//			Vector3d up = new Vector3d(coord.x, coord.y, coord.z);
-//			Vector3d north = Vector3d.Exclude(up, new Vector3d(0, 1, 0)).normalized;
-//			Vector3d east = Vector3d.Cross(north, up).normalized;
-
-		}
-
-		#region Interface to Planet
-		protected override List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
-		{
-			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
 			List<Pair<double, int>> ret = new List<Pair<double, int>>(coords.Count);
-
 
 			for(int i = 0; i < coords.Count; i += 1000)
 			{
 				int copy = i;
-				PlanetDatabase.QueueToMainThread(() =>
+				ThreadDispatcher.QueueToMainThread(() =>
 				{
 					for(int j = copy; j < copy + 1000 && j < coords.Count; j++)
 					{
@@ -306,20 +57,126 @@ namespace ProceduralCities
 				});
 			}
 
-			PlanetDatabase.QueueToMainThreadSync(() => {});
+			ThreadDispatcher.QueueToMainThreadSync(() => {});
 
 			return ret;
 		}
 
-		public override double Radius()
+		public List<double> GetTerrain(List<Coordinates> coords)
 		{
-			return Body.Radius;
+			return GetTerrainAndBiome(coords).Select(x => x.item1).ToList();
 		}
 
+		public Planet.Biome[] GetBiomeList()
+		{
+			return biomeList;
+		}
+
+		public double Radius
+		{
+			get { return Body.Radius; }
+		}
+	}
+
+	[Serializable]
+	public class KSPPlanet : Planet
+	{
+		[NonSerialized]
+		public CelestialBody Body;
+		readonly string Name;
+
+		[NonSerialized]
+		public GameObject roadOverlay;
+
+		[NonSerialized]
+		public ContentCatalog Catalog;
+
+		public KSPPlanet(CelestialBody body, int seed) : base(new KSPTerrain(body), seed)
+		{
+			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
+
+			ThreadDispatcher.Log("Constructing KSPPlanet");
+
+			Body = body;
+			Name = body.name;
+			ThreadDispatcher.QueueToMainThread(() => Init());
+		}
+
+		[OnDeserialized]
+		void Deserialized(StreamingContext context)
+		{
+			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
+			Body = FlightGlobals.Bodies.Where(x => x.name == Name).First();
+			ThreadDispatcher.QueueToMainThread(() => Init());
+			ThreadDispatcher.Log("Deserialized {0}", Name);
+		}
+
+		void Init()
+		{
+			Utils.Log("Init {0}", Body.name);
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
+
+			roadOverlay = new GameObject();
+			var ro = roadOverlay.AddComponent<RoadOverlay>();
+			ro.Body = Body;
+
+			Catalog = new ContentCatalog(Body);
+
+			ThreadDispatcher.QueueToWorker(() => GrosCube.MakePleinDeGrosCubes(Body));
+
+			ThreadDispatcher.QueueToWorker(() => {
+				Log("Building road map overlay and roads");
+
+				Color[] palette = new[] { Color.blue, Color.green, Color.red, Color.cyan, Color.magenta, Color.yellow };
+
+				int n = 0;
+				var tmp = System.Diagnostics.Stopwatch.StartNew();
+				foreach (var i in Roads)
+				{
+					Color32 c = palette[n % palette.Length];
+					n++;
+
+					var road = new Bezier(i.Select(x => Vertices[x].coord).ToList(), Body.Radius);
+					ro.Add(road.Rasterize(1000), new Color32(c.r, c.g, c.b, 128));
+
+					RoadSegment.MakeSegments(Body, road);
+				}
+
+				ThreadDispatcher.QueueToMainThread(() => ro.UpdateMesh());
+
+				ThreadDispatcher.QueueToMainThreadSync(() => {});
+				Log(string.Format("{0} road segments created in {1:F0} ms", PlanetDatabase.GetPlanet(Body.name).Catalog.Count, tmp.ElapsedMilliseconds));
+				Log("Road overlay created");
+			});
+		}
+
+		public void Destroy()
+		{
+			GameObject.Destroy(roadOverlay);
+		}
+
+		public void Save(ConfigNode node)
+		{
+			node.AddValue("name", Body.name);
+			node.AddValue("seed", Seed);
+		}
+
+		public void UpdatePosition(Coordinates coord)
+		{
+			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
+
+//			Vector3d up = new Vector3d(coord.x, coord.y, coord.z);
+//			Vector3d north = Vector3d.Exclude(up, new Vector3d(0, 1, 0)).normalized;
+//			Vector3d east = Vector3d.Cross(north, up).normalized;
+		}
+
+		#region Interface to Planet
 		protected override void Log(string message)
 		{
-			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
-			PlanetDatabase.Log(message);
+			if (ThreadDispatcher.IsMainThread)
+				Utils.Log(message);
+			else
+				ThreadDispatcher.Log(message);
 		}
 		#endregion
 	}

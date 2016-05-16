@@ -17,13 +17,9 @@ namespace ProceduralCities
 		double width;
 		Vector3 center;
 
-		private RoadSegment(CelestialBody body, List<Vector3d> coordinates, List<Vector3d> normals, double width)
+		private RoadSegment(CelestialBody body, List<Vector3d> coordinates, List<Vector3d> normals, double width): base(body)
 		{
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
-			UnloadDistance = float.MaxValue;
-			VisibleDistance = 40000f;
-			Planet = body.name;
-			Body = body;
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
 			this.coordinates = coordinates;
 			this.normals = normals;
 			this.width = width;
@@ -34,7 +30,7 @@ namespace ProceduralCities
 
 		protected override void Initialize()
 		{
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
 			gameObject = new GameObject();
 			meshFilter = gameObject.AddComponent<MeshFilter>();
 			renderer = gameObject.AddComponent<MeshRenderer>();
@@ -90,7 +86,7 @@ namespace ProceduralCities
 
 		void UpdateMesh(IEnumerable<Vector3> vertices, IEnumerable<int> triangles, IEnumerable<Vector2> uv)
 		{
-			DebugUtils.Assert(PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
 
 			mesh.Clear();
 
@@ -131,7 +127,7 @@ namespace ProceduralCities
 
 		public static void MakeSegments(CelestialBody body, Bezier road, double segmentLength = 5000, double width = 40)
 		{
-			DebugUtils.Assert(!PlanetDatabase.Instance.IsMainThread);
+			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
 
 			double radius = body.Radius;
 			double triangleLength = width;
@@ -150,7 +146,7 @@ namespace ProceduralCities
 				{
 					int start = currentStart;
 					int count = i - start + 1;
-					PlanetDatabase.QueueToMainThread(() =>
+					ThreadDispatcher.QueueToMainThread(() =>
 					{
 						PlanetDatabase.Instance.AddWorldObject(
 							new RoadSegment(
@@ -165,7 +161,7 @@ namespace ProceduralCities
 				}
 			}
 
-			PlanetDatabase.QueueToMainThread(() =>
+			ThreadDispatcher.QueueToMainThread(() =>
 			{
 				PlanetDatabase.Instance.AddWorldObject(new RoadSegment(
 					body,

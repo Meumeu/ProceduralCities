@@ -1,43 +1,36 @@
 ﻿using System;
-using System.IO;
+using System.Runtime.Serialization;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace ProceduralCities
 {
-	public abstract class Planet
+	public interface PlanetData
 	{
+		List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords);
+		Planet.Biome[] GetBiomeList();
+		List<double> GetTerrain(List<Coordinates> coords);
+		double Radius { get; }
+	}
+
+	[Serializable]
+	public class Planet
+	{
+		[Serializable]
 		public class Vertex
 		{
-			public Coordinates coord;
+			public readonly Coordinates coord;
 			public int Biome;
 			public double TerrainHeight;
 
 			// City generation stuff
 			public double Score;
-			public int NearestCity;
+			public int NearestCity; // index of the nearest city
+			public int NextVertex; // index of the next vertex to reach the nearest city
 
 			public Vertex(Coordinates c)
 			{
 				coord = c;
-			}
-
-			public Vertex(System.IO.BinaryReader reader)
-			{
-				coord = new Coordinates(reader);
-				Biome = reader.ReadInt32();
-				TerrainHeight = reader.ReadDouble();
-				Score = reader.ReadDouble();
-				NearestCity = reader.ReadInt32();
-			}
-
-			public void Write(System.IO.BinaryWriter writer)
-			{
-				coord.Write(writer);
-				writer.Write(Biome);
-				writer.Write(TerrainHeight);
-				writer.Write(Score);
-				writer.Write(NearestCity);
 			}
 
 			public Vertex()
@@ -45,28 +38,20 @@ namespace ProceduralCities
 			}
 		}
 
+		[Serializable]
 		public class Biome
 		{
-			public string Name;
-			public double Desirability;
+			public readonly string Name;
+			public readonly double Desirability;
 
-			public Biome()
+			public Biome(string name, double desirability)
 			{
-			}
-
-			public Biome(System.IO.BinaryReader reader)
-			{
-				Name = reader.ReadString();
-				Desirability = reader.ReadDouble();
-			}
-
-			public void Write(System.IO.BinaryWriter writer)
-			{
-				writer.Write(Name);
-				writer.Write(Desirability);
+				this.Name = name;
+				this.Desirability = desirability;
 			}
 		}
 
+		[Serializable]
 		public class City
 		{
 			public int Position;
@@ -74,201 +59,91 @@ namespace ProceduralCities
 			public City()
 			{
 			}
-
-			public City(System.IO.BinaryReader reader)
-			{
-				Position = reader.ReadInt32();
-			}
-
-			public void Write(System.IO.BinaryWriter writer)
-			{
-				writer.Write(Position);
-			}
 		}
 
-		bool Built;
-		public int Seed;
+		public readonly int Seed;
 		Random PRNG;
+
+		[NonSerialized]
+		public PlanetData Terrain;
 
 		public List<Vertex> Vertices;
 		public int[,] Edges;
 		public double[,] EdgeCost;
 
-		public List<Biome> Biomes;
+		public Biome[] Biomes;
 		public List<City> Cities;
 		public List<List<int>> Roads;
-		public Pathfinding PathToOcean;
-		public Pathfinding PathToNearestCity;
 
-		public Planet()
+		[NonSerialized]
+		Icosphere sphere;
+
+		public double Radius { get { return Terrain.Radius; } }
+
+		public Planet(PlanetData terrain, int seed)
 		{
-			Built = false;
-		}
+			Terrain = terrain;
+			Biomes = Terrain.GetBiomeList();
+			Seed = seed;
 
-		protected void Read(System.IO.BinaryReader reader)
-		{
-			int n, m;
+			Log("Initializigng PRNG with seed " + Seed);
+			PRNG = new System.Random(Seed);
 
-			Seed = reader.ReadInt32();
-
-			n = reader.ReadInt32();
-			Vertices = new List<Vertex>(n);
-			for(int i = 0; i < n; i++)
-				Vertices.Add(new Vertex(reader));
-
-			n = reader.ReadInt32();
-			m = reader.ReadInt32();
-			Edges = new int[n, m];
-			for (int i = 0; i < n; i++)
-				for (int j = 0; j < m; j++)
-					Edges[i, j] = reader.ReadInt32();
-
-			n = reader.ReadInt32();
-			m = reader.ReadInt32();
-			EdgeCost = new double[n, m];
-			for (int i = 0; i < n; i++)
-				for (int j = 0; j < m; j++)
-					EdgeCost[i, j] = reader.ReadDouble();
-
-			n = reader.ReadInt32();
-			Biomes = new List<Biome>(n);
-			for (int i = 0; i < n; i++)
-				Biomes.Add(new Biome(reader));
-
-			n = reader.ReadInt32();
-			Cities = new List<City>(n);
-			for (int i = 0; i < n; i++)
-				Cities.Add(new City(reader));
-
-			n = reader.ReadInt32();
-			Roads = new List<List<int>>(n);
-			for (int i = 0; i < n; i++)
-			{
-				m = reader.ReadInt32();
-				var tmp = new List<int>(m);
-				for (int j = 0; j < m; j++)
-				{
-					tmp.Add(reader.ReadInt32());
-				}
-				Roads.Add(tmp);
-			}
-
-			PathToOcean = new Pathfinding(reader);
-			PathToNearestCity = new Pathfinding(reader);
-
-			Built = true;
-		}
-
-		protected void Write(System.IO.BinaryWriter writer)
-		{
-			writer.Write(Seed);
-			
-			writer.Write(Vertices.Count);
+			Log("Building icosphere");
+			/*Icosphere*/ sphere = new Icosphere(6);
+			Vertices = sphere.GetCoordinates().Select(x => new Vertex(x)).ToList();
+			Edges = new int[Vertices.Count, 6];
 			for (int i = 0, n = Vertices.Count; i < n; i++)
-				Vertices[i].Write(writer);
-
-			writer.Write(Edges.GetLength(0));
-			writer.Write(Edges.GetLength(1));
-			for (int i = 0, n = Edges.GetLength(0), m = Edges.GetLength(1); i < n; i++)
-				for (int j = 0; j < m; j++)
-					writer.Write(Edges[i, j]);
-
-			writer.Write(EdgeCost.GetLength(0));
-			writer.Write(EdgeCost.GetLength(1));
-			for (int i = 0, n = EdgeCost.GetLength(0), m = EdgeCost.GetLength(1); i < n; i++)
-				for (int j = 0; j < m; j++)
-					writer.Write(EdgeCost[i, j]);
-
-			writer.Write(Biomes.Count);
-			for (int i = 0, n = Biomes.Count; i < n; i++)
-				Biomes[i].Write(writer);
-
-			writer.Write(Cities.Count);
-			for (int i = 0, n = Cities.Count; i < n; i++)
-				Cities[i].Write(writer);
-
-			writer.Write(Roads.Count);
-			for (int i = 0, n = Roads.Count; i < n; i++)
 			{
-				writer.Write(Roads[i].Count);
-				for (int j = 0, m = Roads[i].Count; j < m; j++)
-					writer.Write(Roads[i][j]);
+				int j = 0;
+				foreach (var tri in sphere.GetNeighbors(i))
+					Edges[i, j++] = tri;
+				for (; j < Edges.GetLength(1); j++)
+					Edges[i, j] = -1;
 			}
 
-			PathToOcean.Write(writer);
-			PathToNearestCity.Write(writer);
-		}
+			Log(string.Format("{0} vertices", Vertices.Count));
 
-		public void Build()
-		{
-			if (Built)
+			double dist = 0;
+			int nbEdges = 0;
+			foreach (var i in AllEdges())
 			{
-				BuildFinished(true);
+				dist += Coordinates.Distance(Vertices[i.item1].coord, Vertices[i.item2].coord);
+				nbEdges++;
 			}
-			else
+
+			Log(string.Format("{0} edges, average length: {1:F2} km, total length: {2:F2} km", nbEdges / 2, dist * Radius / nbEdges / 1000, dist * Radius / 2 / 1000));
+
+			Log("Computing terrain and biome");
+			FillTerrainAndBiome();
+			Log("Computing edge costs");
+			FillEdgeCost();
+
+			//Log("Computing distance between terrain and water");
+			//var PathToOcean = new Pathfinding(this, Enumerable.Range(0, Vertices.Count).Where(i => Vertices[i].TerrainHeight < 0));
+
+			Log("Building cities");
+			BuildCities();
+
+			Log("Computing zones of influence");
+			BuildZonesOfInfluence();
+
+			Log("Computing major roads: pass 1");
+			BuildRoads();
+			/*for (int i = 2; i < 5; i++)
 			{
-				Log("Initializigng PRNG with seed " + Seed);
-				PRNG = new System.Random(Seed);
-
-				Log("Building icosphere");
-				Icosphere sphere = new Icosphere(6);
-				Vertices = sphere.GetCoordinates().Select(x => new Vertex(x)).ToList();
-				Edges = new int[Vertices.Count, 6];
-				for (int i = 0, n = Vertices.Count; i < n; i++)
-				{
-					int j = 0;
-					foreach (var tri in sphere.GetNeighbors(i))
-						Edges[i, j++] = tri;
-					for (; j < Edges.GetLength(1); j++)
-						Edges[i, j] = -1;
-				}
-
-				Log(string.Format("{0} vertices", Vertices.Count));
-
-				double dist = 0;
-				int nbEdges = 0;
-				foreach (var i in AllEdges())
-				{
-					dist += Coordinates.Distance(Vertices[i.item1].coord, Vertices[i.item2].coord);
-					nbEdges++;
-				}
-
-				Log(string.Format("{0} edges, average length: {1:F2} km, total length: {2:F2} km", nbEdges / 2, dist * Radius() / nbEdges / 1000, dist * Radius() / 2 / 1000));
-
-
-				Log("Computing terrain and biome");
-				FillTerrainAndBiome();
-				Log("Computing edge costs");
-				FillEdgeCost();
-
-				Log("Computing distance between terrain and water");
-				PathToOcean = new Pathfinding(this, Enumerable.Range(0, Vertices.Count).Where(i => Vertices[i].TerrainHeight < 0));
-
-				Log("Building cities");
-				BuildCities();
-
-				Log("Computing zones of influence");
+				Log("Refining mesh");
+				RefineMesh(sphere);
+				Log("Recomputing zones of influence");
 				BuildZonesOfInfluence();
 
-				Log("Computing major roads: pass 1");
+				Log("Computing major roads: pass " + i);
 				BuildRoads();
-				for (int i = 2; i < 5; i++)
-				{
-					Log("Refining mesh");
-					RefineMesh(sphere);
-					Log("Recomputing zones of influence");
-					BuildZonesOfInfluence();
+			}*/
 
-					Log("Computing major roads: pass " + i);
-					BuildRoads();
-				}
+			Log(Pathfinding.Stats());
 
-				Pathfinding.PrintStats();
-
-				Log(string.Format("{0} vertices", Vertices.Count));
-				BuildFinished(false);
-				Built = true;
-			}
+			Log(string.Format("{0} vertices", Vertices.Count));
 		}
 
 		IEnumerable<Pair<int, int>> AllEdges()
@@ -323,14 +198,22 @@ namespace ProceduralCities
 		#region Compute zones of influence
 		void BuildZonesOfInfluence()
 		{
-			PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
+			var PathToNearestCity = new Pathfinding(this, Cities.Select(x => x.Position));
 
 			for (int i = 0, n = Vertices.Count; i < n; i++)
 			{
 				if (PathToNearestCity.Nodes[i].visited)
-					Vertices[i].NearestCity = PathToNearestCity.GetPath(i).Last();
+				{
+					var path = PathToNearestCity.GetPath(i).ToList();
+
+					Vertices[i].NearestCity = path.Last();
+					Vertices[i].NextVertex = path.Count < 2 ? -1 : path[1];
+				}
 				else
+				{
 					Vertices[i].NearestCity = -1;
+					Vertices[i].NextVertex = -1;
+				}
 			}
 		}
 		#endregion
@@ -438,7 +321,7 @@ namespace ProceduralCities
 
 		void RefineMesh(Icosphere sphere)
 		{
-			foreach (var i in Roads)
+			/*foreach (var i in Roads)
 			{
 				foreach (int j in i)
 				{
@@ -464,14 +347,14 @@ namespace ProceduralCities
 					Edges[i, j] = -1;
 			}
 
-			FillEdgeCost(oldCount);
+			FillEdgeCost(oldCount);*/
 		}
 		#endregion
 
 		void FillTerrainAndBiome(int from = 0)
 		{
 			List<Coordinates> coords = Vertices.Select(x => x.coord).Skip(from).ToList();
-			var data = GetTerrainAndBiome(coords);
+			var data = Terrain.GetTerrainAndBiome(coords);
 			for (int i = 0, n = coords.Count; i < n; i++)
 			{
 				Vertices[from + i].TerrainHeight = data[i].item1;
@@ -497,7 +380,7 @@ namespace ProceduralCities
 					v1.z * j + v2.z * (nbSamples - 1 - j))));
 			}
 
-			var terrain = GetTerrain(coords);
+			var terrain = Terrain.GetTerrain(coords);
 
 			if (EdgeCost == null)
 			{
@@ -536,20 +419,7 @@ namespace ProceduralCities
 		}
 
 		#region To be implemented by derived classes
-		protected abstract List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords);
-		protected virtual List<double> GetTerrain(List<Coordinates> coords)
-		{
-			return GetTerrainAndBiome(coords).Select(x => x.item1).ToList();
-		}
-
-		protected virtual List<int> GetBiome(List<Coordinates> coords)
-		{
-			return GetTerrainAndBiome(coords).Select(x => x.item2).ToList();
-		}
-
-		public abstract double Radius();
-		protected abstract void Log(string message);
-		protected virtual void BuildFinished(bool FromCache) {}
+		protected virtual void Log(string message) {}
 		#endregion
 	}
 }

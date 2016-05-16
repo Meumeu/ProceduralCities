@@ -138,6 +138,11 @@ namespace ProceduralCities
 			tex.Apply();
 			return tex;
 		}
+	
+		public static void Log(string format, params object[] args)
+		{
+			Debug.Log("[ProceduralCities] " + String.Format(format, args).Replace("\n", "\n[ProceduralCities] "));
+		}
 	}
 }
-
+	

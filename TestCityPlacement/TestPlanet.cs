@@ -5,12 +5,13 @@ using System.IO;
 
 namespace ProceduralCities
 {
-	public class TestPlanet : Planet
+	class TestTerrain : PlanetData
 	{
 		byte[,] biomes;
 		float[,] terrain;
+		Planet.Biome[] biomeList;
 
-		public TestPlanet(string map)
+		public TestTerrain(string map)
 		{
 			Console.WriteLine("Loading data");
 			using (BinaryReader reader = new BinaryReader(File.Open(map, FileMode.Open)))
@@ -40,7 +41,7 @@ namespace ProceduralCities
 					}
 				}
 
-				Biomes = new List<Biome>(nb_biomes);
+				biomeList = new Planet.Biome[nb_biomes];
 				for (int i = 0; i < nb_biomes; i++)
 				{
 					double d;
@@ -58,15 +59,12 @@ namespace ProceduralCities
 						d = 1.0;
 						break;
 					}
-
-					Biomes.Add(new Biome() { Name = n, Desirability = d });
+					biomeList[i] = new Planet.Biome(n, d);
 				}
 			}
-
-			Build();
 		}
 
-		public double GetTerrainHeight(double Latitude, double Longitude)
+		double GetTerrainHeight(double Latitude, double Longitude)
 		{
 			double i = ((Latitude + Math.PI / 2) / Math.PI * terrain.GetLength(0));
 			double j = ((Longitude + Math.PI) / (2 * Math.PI) * terrain.GetLength(1)) % terrain.GetLength(1);
@@ -78,7 +76,7 @@ namespace ProceduralCities
 				i1 = 0;
 			else if (i1 >= terrain.GetLength(0))
 				i1 = terrain.GetLength(0) - 1;
-			
+
 			if (j1 < 0)
 				j1 += terrain.GetLength(1);
 
@@ -120,21 +118,16 @@ namespace ProceduralCities
 			double y_scale = 600000 * 2 * Math.PI / terrain.GetLength(1);
 
 			x = (
-			    (terrain[i2, j1] - terrain[i1, j1]) * (1 - v) +
-			    (terrain[i2, j2] - terrain[i1, j2]) * v) * x_scale;
+				(terrain[i2, j1] - terrain[i1, j1]) * (1 - v) +
+				(terrain[i2, j2] - terrain[i1, j2]) * v) * x_scale;
 
 			y = (
-			    (terrain[i1, j2] * (1 - u) + terrain[i2, j2] * u) +
-			    (terrain[i1, j1] * (1 - u) + terrain[i2, j1] * u)) * y_scale;
+				(terrain[i1, j2] * (1 - u) + terrain[i2, j2] * u) +
+				(terrain[i1, j1] * (1 - u) + terrain[i2, j1] * u)) * y_scale;
 
 		}
 
-		public string GetBiomeName(double Latitude, double Longitude)
-		{
-			return Biomes[GetBiomeId(Latitude, Longitude)].Name;
-		}
-
-		public byte GetBiomeId(double Latitude, double Longitude)
+		byte GetBiomeId(double Latitude, double Longitude)
 		{
 			int i = (int)(((Latitude + Math.PI / 2) / Math.PI * biomes.GetLength(0))) % biomes.GetLength(0);
 			int j = (int)(((Longitude + Math.PI) / (2 * Math.PI) * biomes.GetLength(1))) % biomes.GetLength(1);
@@ -143,23 +136,45 @@ namespace ProceduralCities
 				i += biomes.GetLength(0);
 			if (j < 0)
 				j += biomes.GetLength(1);
-			
+
 			return biomes[i , j];
 		}
 
-		#region Interface to Planet
-		protected override List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
+		public List<Pair<double, int>> GetTerrainAndBiome(List<Coordinates> coords)
 		{
 			return coords.Select(x => new Pair<double, int>(
 				GetTerrainHeight(x.Latitude, x.Longitude),
 				GetBiomeId(x.Latitude, x.Longitude))).ToList();
 		}
 
-		public override double Radius()
+		public List<double> GetTerrain(List<Coordinates> coords)
 		{
-			return 600000;
+			return coords.Select(x => GetTerrainHeight(x.Latitude, x.Longitude)).ToList();
 		}
 
+		public Planet.Biome[] GetBiomeList()
+		{
+			return biomeList;
+		}
+
+		public double Radius
+		{
+			get	{ return 600000; }
+		}
+	}
+
+	public class TestPlanet : Planet
+	{
+		public TestPlanet(string map) : base(new TestTerrain(map), 0)
+		{
+		}
+
+		public double GetTerrainHeight(double lat, double lon)
+		{
+			return Terrain.GetTerrain(new List<Coordinates>() { new Coordinates(lat, lon) }).First();
+		}
+
+		#region Interface to Planet
 		protected override void Log(string message)
 		{
 			Console.WriteLine(message);

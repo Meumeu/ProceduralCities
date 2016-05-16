@@ -78,7 +78,7 @@ namespace ProceduralCities
 					double grad_x, grad_y;
 
 					double alt = p.GetTerrainHeight(-lat, lon);
-					p.GetTerrainGradient(-lat, lon, out grad_x, out grad_y);
+					// p.GetTerrainGradient(-lat, lon, out grad_x, out grad_y);
 
 					UInt32 c = TerrainColor(alt, AltitudePalette);
 					data[index + 0] = (byte)(c & 0xff);
@@ -149,9 +149,9 @@ namespace ProceduralCities
 						ctx.Arc(x, y, 1, 0, 2 * Math.PI);
 						ctx.Fill();
 
-						if (p.PathToNearestCity.Nodes[i].visited)
+						if (p.Vertices[i].NextVertex != -1) //(p.PathToNearestCity.Nodes[i].visited)
 						{
-							Planet.Vertex org = p.Vertices[p.PathToNearestCity.Nodes[i].next];
+							Planet.Vertex org = p.Vertices[p.Vertices[i].NextVertex];
 							DrawEdge(ctx, p.Vertices[i].coord, org.coord, w, h, true);
 						}
 //
@@ -205,6 +205,41 @@ namespace ProceduralCities
 
 				surface.WriteToPng("kerbin-cities.png");
 			}
+
+			/*var vertices = new Icosphere(8).GetCoordinates().ToList();
+			var noise = new SimplexNoise(123, 0.5, 2, 1, 1);
+			Console.WriteLine("vertices: {0}", vertices.Count);
+
+			double[] simplexNoise = new double[vertices.Count];
+			double sumX = 0;
+			double sumX2 = 0;
+			for(int i = 0; i < vertices.Count; i++)
+			{
+				simplexNoise[i] = noise.Generate(vertices[i].x, vertices[i].y, vertices[i].z, 6);
+				sumX += simplexNoise[i];
+				sumX2 += simplexNoise[i] * simplexNoise[i];
+			}
+
+			double meanX = sumX / vertices.Count;
+			double meanX2 = sumX2 / vertices.Count;
+			double variance = meanX2 - meanX * meanX;
+			double std = Math.Sqrt(variance);
+			Console.WriteLine("Mean: {0}, std: {1}", meanX, std);
+
+			int[] nb = new int[200];
+
+			for (int i = 0; i < vertices.Count; i++)
+			{
+				int idx = (int)((simplexNoise[i] - meanX) / std * 25 + 100);
+
+				if (idx >= 0 && idx < 200)
+					nb[idx]++;
+			}
+
+			for (int i = 0; i < 200; i++)
+			{
+				Console.WriteLine(nb[i]);
+			}*/
 		}
 	}
 }

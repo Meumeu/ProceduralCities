@@ -2,9 +2,11 @@
 
 namespace ProceduralCities
 {
+	[Serializable]
 	public struct Coordinates
 	{
 		public readonly double x, y, z, Latitude, Longitude;
+		public static readonly Coordinates KSC = new Coordinates(-0.001788962483527778, -1.301584137981534);
 
 		public Coordinates(double x, double y, double z)
 		{

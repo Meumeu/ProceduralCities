@@ -2,6 +2,8 @@
 using System.Threading;
 using System.Collections.Generic;
 using UnityEngine;
+using KSP.UI.Screens;
+
 
 namespace ProceduralCities
 {
@@ -42,21 +44,12 @@ namespace ProceduralCities
 				activeTexture = GameDatabase.Instance.GetTexture("ProceduralCities/icon38-active", false);
 
 			toolbarButton = ApplicationLauncher.Instance.AddModApplication(
-				showWindow, hideWindow,
+				() => windowVisible = true, 
+				() => windowVisible = false,
 				null, null,
 				null, null,
 				ApplicationLauncher.AppScenes.SPACECENTER | ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.MAPVIEW | ApplicationLauncher.AppScenes.TRACKSTATION,
 				windowVisible ? activeTexture : inactiveTexture);
-		}
-
-		static void showWindow()
-		{
-			windowVisible = true;
-		}
-
-		static void hideWindow()
-		{
-			windowVisible = false;
 		}
 
 		public void OnGUI()
@@ -64,15 +57,14 @@ namespace ProceduralCities
 			if (!windowVisible)
 				return;
 			windowPosition.width = Math.Max(windowPosition.width, 300);
-			windowPosition = GUILayout.Window(windowId, windowPosition,
-				DrawWindow, "ProceduralCities");
+			windowPosition = GUILayout.Window(windowId, windowPosition, DrawWindow, "ProceduralCities");
 		}
 
 //		Texture2D lastComputedMap;
 
 		void DrawWindow(int windowId)
 		{
-			string planet = FlightGlobals.currentMainBody.name;
+			string planet = FlightGlobals.currentMainBody == null ? "Kerbin" : FlightGlobals.currentMainBody.name;
 			GUILayout.Label("Current planet: " + planet);
 
 			KSPPlanet p = PlanetDatabase.GetPlanet(planet);
@@ -88,10 +80,12 @@ namespace ProceduralCities
 //					});
 //				}
 
-				/*if (GUILayout.Button("Export maps"))
+				if (GUILayout.Button("Export maps"))
 				{
-					p.ExportData(2048, 1024);
-				}*/
+					string dir = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+					var exporter = new PlanetExporter(FlightGlobals.currentMainBody);
+					exporter.Export(dir + "/" + planet + ".dat", 2048, 1024);
+				}
 			}
 			else
 			{
@@ -100,16 +94,6 @@ namespace ProceduralCities
 
 			GUI.DragWindow();
 		}
-
-		/*public void Start()
-		{
-			Debug.Log("[ProceduralCities] ProceduralCities.Start");
-		}
-
-		public void Awake()
-		{
-			Debug.Log("[ProceduralCities] ProceduralCities.Awake");
-		}*/
 
 		public void Update()
 		{
@@ -123,11 +107,7 @@ namespace ProceduralCities
 
 		public override void OnLoad(ConfigNode node)
 		{
-			if (PlanetDatabase.Loaded) // PlanetDatabase is already loaded, don't rebuild everything
-			{
-				Debug.Log("[ProceduralCities] Planet database is already loaded");
-			}
-			else
+			if (!PlanetDatabase.Loaded)
 			{
 				if (Seed == 0) // First run for this save
 					Seed = 12345; // TODO: random value
