@@ -51,7 +51,7 @@ namespace ProceduralCities
 
 			foreach(var i in tilecolors)
 			{
-				AddTile(planet.Tiles[i.Key], i.Value, vertices, triangles, colors);
+				AddTile(Planet.Tiles[i.Key], i.Value, vertices, triangles, colors);
 			}
 
 			UpdateMesh(vertices, triangles, colors);

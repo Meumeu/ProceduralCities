@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace ProceduralCities
 {
-	public class Terrain : PlanetData
+	public class Terrain : IPlanetData
 	{
 		readonly CelestialBody Body;
 
@@ -26,36 +26,33 @@ namespace ProceduralCities
 			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
 			PairIntDouble[] ret = new PairIntDouble[coords.Length];
 
-			for(int i = 0; i < coords.Length; i += 1000)
+			ThreadDispatcher.QueueToMainThreadSync(() =>
 			{
-				int copy = i;
-				ThreadDispatcher.QueueToMainThread(() =>
+				for(int i = 0; i < coords.Length; i++)
 				{
-					for(int j = copy; j < copy + 1000 && j < coords.Length; j++)
-					{
-						Coordinates c = coords[j];
-						double alt = Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(c.Latitude * 180 / Math.PI, c.Longitude * 180 / Math.PI)) - Body.Radius;
-						int biome = -1;
+					double lon = coords[i].Longitude;
+					double lat = coords[i].Latitude;
 
-						if (Body.BiomeMap)
+					double alt = Body.pqsController.GetSurfaceHeight(Body.GetRelSurfaceNVector(lat * 180 / Math.PI, lon * 180 / Math.PI)) - Body.Radius;
+					int biome = -1;
+
+					if (Body.BiomeMap)
+					{
+						var attr = Body.BiomeMap.GetAtt(lat, lon);
+						for (int k = 0, n = Body.BiomeMap.Attributes.Length; k < n; k++)
 						{
-							var attr = Body.BiomeMap.GetAtt(c.Latitude, c.Longitude);
-							for (int k = 0, n = Body.BiomeMap.Attributes.Length; k < n; k++)
+							if (attr == Body.BiomeMap.Attributes[k])
 							{
-								if (attr == Body.BiomeMap.Attributes[k])
-								{
-									biome = k;
-									break;
-								}
+								biome = k;
+								break;
 							}
 						}
-
-						ret[j] = new PairIntDouble(biome, alt);
 					}
-				});
-			}
 
-			ThreadDispatcher.QueueToMainThreadSync(() => {});
+					ret[i] = new PairIntDouble(biome, alt);
+				}
+			});
+
 
 			return ret;
 		}

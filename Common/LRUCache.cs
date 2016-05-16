@@ -12,14 +12,14 @@ namespace ProceduralCities
 		{
 			public int key;
 			public TValue data;
-			public Node prev;
-			public Node next;
+			//public Node prev;
+			//public Node next;
 		}
 
 		Dictionary<int, Node> dict = new Dictionary<int, Node>();
 		readonly int capacity;
-		Node first;
-		Node last;
+		//Node first;
+		//Node last;
 		Constructor constructor;
 
 		int Count
@@ -41,7 +41,7 @@ namespace ProceduralCities
 
 		void Remove(Node node)
 		{
-			if (node.next == null)
+		/*	if (node.next == null)
 				last = node.prev;
 			else
 				node.next.prev = node.prev;
@@ -49,12 +49,12 @@ namespace ProceduralCities
 			if (node.prev == null)
 				first = node.next;
 			else
-				node.prev.next = node.next;
+				node.prev.next = node.next;*/
 		}
 
 		void Add(Node node)
 		{
-			node.prev = null;
+			/*node.prev = null;
 			node.next = first;
 
 			if (node.next == null)
@@ -62,22 +62,16 @@ namespace ProceduralCities
 			else
 				node.next.prev = node;
 
-			first = node;
+			first = node;*/
 		}
 
 		void MoveToFirst(Node node)
 		{
-			if (node.prev == null)
+			/*if (node.prev == null)
 				return;
 			
 			Remove(node);
-			Add(node);
-		}
-
-		void RemoveLast()
-		{
-			dict.Remove(last.key);
-			Remove(last);
+			Add(node);*/
 		}
 
 		public bool ContainsKey(int key)
@@ -92,9 +86,23 @@ namespace ProceduralCities
 		{
 			lock (this)
 			{
-				first = null;
-				last = null;
+				/*first = null;
+				last = null;*/
 				dict.Clear();
+			}
+		}
+
+		public void RemoveOldElements(Func<int, double> scoringfunction)
+		{
+			lock (this)
+			{
+				var keys = dict.Keys.OrderBy(scoringfunction).ToArray();
+
+				for (int i = capacity; i < keys.Length; i++)
+				{
+					dict.Remove(keys[i]);
+					//Remove(last);
+				}
 			}
 		}
 
@@ -145,9 +153,6 @@ namespace ProceduralCities
 				node.data = constructor(key);
 				dict.Add(key, node);
 				Add(node);
-
-				if (dict.Count > capacity)
-					RemoveLast();
 			}
 			return node;
 		}

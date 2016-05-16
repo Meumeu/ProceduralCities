@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 
@@ -272,6 +273,7 @@ namespace ProceduralCities
 		public int CountTriangles { get { return triangles.Count; } }
 	}
 
+	[Serializable]
 	public class TileGeometry
 	{
 		public readonly Coordinates Center;
@@ -293,6 +295,37 @@ namespace ProceduralCities
 			Center = new Coordinates(vertices.Sum(i => i.x), vertices.Sum(i => i.y), vertices.Sum(i => i.z));
 
 			Vertices = vertices.OrderBy(i => AngleAround(vertices[0].Vector, i.Vector, Center.Vector)).ToArray();
+		}
+
+		public TileGeometry(BinaryReader reader)
+		{
+			double lon = reader.ReadDouble();
+			double lat = reader.ReadDouble();
+			Center = new Coordinates(lat, lon);
+			int n = reader.ReadInt32();
+			Vertices = new Coordinates[n];
+			Neighbours = new int[n];
+			for (int i = 0; i < n; i++)
+			{
+				lon = reader.ReadDouble();
+				lat = reader.ReadDouble();
+				Vertices[i] = new Coordinates(lat, lon);
+				Neighbours[i] = reader.ReadInt32();
+			}
+		}
+
+		public void Write(BinaryWriter writer)
+		{
+			writer.Write(Center.Longitude);
+			writer.Write(Center.Latitude);
+			DebugUtils.Assert(Vertices.Length == Neighbours.Length);
+			writer.Write(Vertices.Length);
+			for (int i = 0; i < Vertices.Length; i++)
+			{
+				writer.Write(Vertices[i].Longitude);
+				writer.Write(Vertices[i].Latitude);
+				writer.Write(Neighbours[i]);
+			}
 		}
 
 		public bool Contains(Vector3d v)
@@ -349,7 +382,7 @@ namespace ProceduralCities
 				{
 					for (int l = 0; l < k; l++)
 					{
-						ret[m++] = Coordinates.LinearCombination(l, u, k - l, v, resolution - k, Center);
+						ret[m++] = Coordinates.LinearCombination(l, u, k - l, v, resolution - 1 - k, Center);
 					}
 				}
 			}

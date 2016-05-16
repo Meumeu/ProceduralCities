@@ -12,27 +12,13 @@ namespace ProceduralCities
 
 		GameObject tileOverlayObj;
 		MapOverlayTiles tileOverlay;
-		LRUCache<Color32> TileCache = new LRUCache<Color32>(idx => new Color32(), 200);
+		//LRUCache<Color32> TileCache = new LRUCache<Color32>(idx => new Color32(), 200);
 
 		public KSPPlanet(CelestialBody body, int seed) : base(new Terrain(body), seed)
 		{
 			DebugUtils.Assert(!ThreadDispatcher.IsMainThread);
 
 			Body = body;
-
-			ThreadDispatcher.QueueToMainThread(() =>
-			{
-				tileOverlayObj = new GameObject();
-				tileOverlay = tileOverlayObj.AddComponent<MapOverlayTiles>();
-				tileOverlay.Body = Body;
-				tileOverlay.planet = this;
-
-				if (CurrentTile >= 0)
-				{
-					TileCache[CurrentTile] = new Color32(0, 0, 255, 128);
-					tileOverlay.UpdateTiles(TileCache);
-				}
-			});
 		}
 
 		public void Destroy()
@@ -58,6 +44,7 @@ namespace ProceduralCities
 
 		Coordinates LastUpdatedPosition;
 		Coordinates NextPosition;
+		int LastTile;
 		void UpdatePositionWorker()
 		{
 			lock (this)
@@ -68,18 +55,27 @@ namespace ProceduralCities
 				LastUpdatedPosition = NextPosition;
 			}
 
+			data.RemoveOldElements(x => Coordinates.Distance(LastUpdatedPosition, Tiles[x].Center));
+
+			#if false
 			foreach (var i in FindTiles(LastUpdatedPosition, 0.05))
 			{
-				if (data.ContainsKey(i))
-					continue;
-
-				Utils.Log("Sampling terrain at {0}", Tiles[i].Center);
-				data[i].Load(2);
+				data[i].Load(TileData.Computationlevel.MAX);
 			}
+			#else
+			int tile = FindTile(LastUpdatedPosition);
+			if (tile == LastTile)
+				return;
+			LastTile = tile;
+
+			data[LastTile].Load(TileData.Computationlevel.MAX);
+			#endif
 		}
 
 		public void UpdatePosition(Coordinates coord)
 		{
+			DebugUtils.Assert(ThreadDispatcher.IsMainThread);
+
 			int NextTile = FindTile(coord, CurrentTile);
 			//if (NextTile == CurrentTile)
 			//	return;
@@ -90,33 +86,68 @@ namespace ProceduralCities
 			
 			ThreadDispatcher.QueueToWorker(() => UpdatePositionWorker());
 
+			if (tileOverlayObj == null)
+			{
+				tileOverlayObj = new GameObject();
+				tileOverlay = tileOverlayObj.AddComponent<MapOverlayTiles>();
+				tileOverlay.Body = Body;
+				tileOverlay.planet = this;
+			}
 
-			TileCache.Clear();
+			var tileColors = new Dictionary<int, Color32>();
+			/*int city = -1;
+			if (data.ContainsKey(CurrentTile))
+				city = data[CurrentTile].ClosestCity;*/
+		
 			foreach (var i in data)
 			{
-				var tiledata = i.Value;
-				if (tiledata.SampleAltitudes == null)
-					continue;
-				
-				double minalt = tiledata.SampleAltitudes.Min();
-				double maxalt = tiledata.SampleAltitudes.Max();
-
-				if (i.Value.HasCity.GetValueOrDefault(false))
-					TileCache[i.Key] = new Color32(255, 0, 255, 128);
-				else if (minalt < 0)
-					TileCache[i.Key] = new Color32(0, 0, 255, 128);
-				else
-					TileCache[i.Key] = Color32.Lerp(new Color32(0, 255, 0, 128), new Color32(64, 64, 64, 128), (float)(maxalt - minalt) / 500);
-
+				byte r, g, b;
+				//if (i.Value.Color(out r, out g, out b, city))
+				if (i.Value.Color(out r, out g, out b))
+				{	
+					tileColors[i.Key] = new Color32(r, g, b, 255);
+				}
 			}
-			
-			/*if (CurrentTile >= 0)
-				TileCache[CurrentTile] = new Color32(128, 128, 128, 128);*/
-			
-			/*TileCache[NextTile] = new Color32(255, 0, 0, 128);*/
 
-			if (tileOverlay != null)
-				tileOverlay.UpdateTiles(TileCache);
+			if (data.ContainsKey(CurrentTile) && IsNodeAllowed(CurrentTile))
+			{
+				var knownCities = data.Where(x => x.Value.HasCity.GetValueOrDefault()).Select(x => x.Key).ToArray();
+
+				if (knownCities.Length > 0)
+				{
+					var pf = new Pathfinding(this, knownCities, CurrentTile);
+					var path = pf.GetPath(CurrentTile).ToArray();
+					int city = data[CurrentTile].ClosestCity;
+
+					if (city >= 0)
+					{
+						foreach (var i in data)
+						{
+							if (IsNodeAllowed(i.Key) && data[i.Key].Level >= TileData.Computationlevel.CITY_BORDER_FOUND && city == data[i.Key].ClosestCity && !data[i.Key].HasCity.GetValueOrDefault())
+								tileColors[i.Key] = XKCDColors.Yellow;
+						}
+
+						for (int i = 0; i < path.Length - 1; i++)
+						{
+							tileColors[path[i]] = XKCDColors.Orange;
+						}
+
+						tileColors[CurrentTile] = XKCDColors.Pink;
+
+						var tmp = TileData._frontier;
+						if (tmp != null)
+						{
+							foreach (var i in tmp)
+							{
+								tileColors[i] = XKCDColors.BabyPukeGreen;
+								//DebugUtils.Assert(data[i].ClosestCity != city);
+							}
+						}
+					}
+				}
+			}
+
+			tileOverlay.UpdateTiles(tileColors);
 		}
 
 		protected override void Log(string message)
