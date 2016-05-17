@@ -18,7 +18,7 @@ namespace ProceduralCities
 
 	public class TileData
 	{
-		public enum Computationlevel
+		public enum ComputationLevel
 		{
 			NOTHING = 0,
 			TERRAIN_SAMPLED = 1,
@@ -33,7 +33,7 @@ namespace ProceduralCities
 
 		Planet planet;
 		int index;
-		public Computationlevel Level { get; private set; }
+		public ComputationLevel Level { get; private set; }
 		System.Random PRNG;
 
 		public TileData(Planet planet, int index)
@@ -41,7 +41,10 @@ namespace ProceduralCities
 			this.planet = planet;
 			this.index = index;
 
-			Level = Computationlevel.NOTHING;
+			Level = ComputationLevel.NOTHING;
+
+			PRNG = new System.Random(planet.TileSeeds[index]);
+			CityScore = PRNG.NextDouble();
 		}
 
 		IEnumerable<TileData> Neighbours
@@ -59,73 +62,109 @@ namespace ProceduralCities
 		public bool? HasCity { get; private set; }
 		public int ClosestCity;
 
-		public void Load(Computationlevel reqlevel)
+		public void Load(ComputationLevel reqlevel, int[] tiles)
 		{
-			while (Level < reqlevel)
+			planet.Log("Load({0}, {1} tiles)", reqlevel, tiles.Length);
+			var watch = System.Diagnostics.Stopwatch.StartNew();
+			ComputationLevel minlevel;
+
+			while ((minlevel = tiles.Select(x => planet.data[x].Level).Min()) < reqlevel)
 			{
-				switch (Level)
+				int[] tiles2 = tiles.Where(x => planet.data[x].Level == minlevel).ToArray();
+
+				switch (minlevel)
 				{
-				case Computationlevel.NOTHING:
-					SampleTerrain();
+				case ComputationLevel.NOTHING:
+					SampleTerrain(tiles2);
 					break;
 
-				case Computationlevel.TERRAIN_SAMPLED:
-					PlaceCities();
+				case ComputationLevel.TERRAIN_SAMPLED:
+					PlaceCities(tiles2);
 					break;
 
-				case Computationlevel.CITIES_PLACED:
-					FindCityBorder();
+				case ComputationLevel.CITIES_PLACED:
+					foreach(var i in tiles2)
+						planet.data[i].FindCityBorder();
 					break;
 
 				default:
-					Level = Computationlevel.MAX;
+					planet.Log("Level {0}: {1} ms", Level, watch.ElapsedMilliseconds);
 					return;
 				}
 			}
+
+			planet.Log("Level {0}: {1} ms", Level, watch.ElapsedMilliseconds);
 		}
 
-		void SampleTerrain()
+		public void Load(ComputationLevel reqlevel)
 		{
-			PRNG = new System.Random(planet.TileSeeds[index]);
-
-			SamplePoints = Planet.Tiles[index].Grid(TerrainSamplingResolution);
-
-			var data = planet.Terrain.GetTerrainAndBiome(SamplePoints);
-
-			SampleAltitudes = data.Select(x => x.item2).ToArray();
-			SampleBiomes = data.Select(x => x.item1).ToArray();
-
-			double minalt = SampleAltitudes.Min();
-			double maxalt = SampleAltitudes.Max();
-
-			if (maxalt < 0 || minalt > CityMaxAltitude)
-				CityScore = 0;
-			else
-				CityScore = PRNG.NextDouble();
-			
-			Level = Computationlevel.TERRAIN_SAMPLED;
+			Load(reqlevel, new int[] { index });
 		}
 
-		void PlaceCities()
+		void SampleTerrain(int[] tiles)
 		{
-			if (CityScore > CityScoreThreshold)
+			int[] firstPoint = new int[tiles.Length + 1];
+			List<Coordinates> coords = new List<Coordinates>();
+			for (int i = 0; i < tiles.Length; i++)
 			{
-				bool tmp = true;
-				foreach (var i in Neighbours)
+				firstPoint[i] = coords.Count;
+				planet.data[tiles[i]].SamplePoints = Planet.Tiles[tiles[i]].Grid(TerrainSamplingResolution);
+				coords.AddRange(planet.data[tiles[i]].SamplePoints);
+			}
+			firstPoint[tiles.Length] = coords.Count;
+
+			var data = planet.Terrain.GetTerrainAndBiome(coords.ToArray());
+
+			for (int i = 0; i < tiles.Length; i++)
+			{
+				int nb = firstPoint[i + 1] - firstPoint[i];
+				var alt = new double[nb];
+				var biomes = new int[nb];
+
+				for (int j = 0; j < nb; j++)
 				{
-					i.Load(Computationlevel.TERRAIN_SAMPLED);
-					tmp = tmp && i.CityScore < CityScore;
-					if (!tmp)
-						break;
+					biomes[j] = data[firstPoint[i] + j].item1;
+					alt[j] = data[firstPoint[i] + j].item2;
 				}
-				HasCity = tmp;
+
+				planet.data[tiles[i]].SampleAltitudes = alt;
+				planet.data[tiles[i]].SampleBiomes = biomes;
+
+				double minalt = alt.Min();
+				double maxalt = alt.Max();
+
+				if (maxalt < 0 || minalt > CityMaxAltitude)
+					planet.data[tiles[i]].CityScore = 0;
+
+				planet.data[tiles[i]].Level = ComputationLevel.TERRAIN_SAMPLED;
 			}
-			else
+		}
+
+		void PlaceCities(int[] tiles)
+		{
+			var neighbours = new HashSet<int>();
+			foreach (int i in tiles)
 			{
-				HasCity = false;
+				foreach (var j in planet.data[i].Neighbours)
+					neighbours.Add(j.index);
 			}
 
-			Level = Computationlevel.CITIES_PLACED;
+			Load(ComputationLevel.TERRAIN_SAMPLED, neighbours.ToArray());
+
+			foreach (int i in tiles)
+			{
+				var tile = planet.data[i];
+				if (tile.CityScore > CityScoreThreshold)
+				{
+					tile.HasCity = (tile.Neighbours.Select(x => planet.data[x.index].CityScore).Max() < tile.CityScore);
+				}
+				else
+				{
+					tile.HasCity = false;
+				}
+
+				tile.Level = ComputationLevel.CITIES_PLACED;
+			}
 		}
 
 		static public HashSet<int> _frontier;
@@ -160,9 +199,10 @@ namespace ProceduralCities
 				if (frontier.Count == 0)
 					break;
 
+				Load(ComputationLevel.CITIES_PLACED, frontier.ToArray());
 				foreach (var i in frontier)
 				{
-					planet.data[i].Load(Computationlevel.CITIES_PLACED);
+					//planet.data[i].Load(ComputationLevel.CITIES_PLACED);
 					loadedTiles.Add(i);
 				}
 
@@ -196,14 +236,14 @@ namespace ProceduralCities
 					if (city == pf.GetPath(i).Last())
 					{
 						planet.data[i].ClosestCity = city;
-						planet.data[i].Level = Computationlevel.CITY_BORDER_FOUND;
+						planet.data[i].Level = ComputationLevel.CITY_BORDER_FOUND;
 					}
 				}
 			}
 
 			_frontier = frontier;
 
-			Level = Computationlevel.CITY_BORDER_FOUND;
+			Level = ComputationLevel.CITY_BORDER_FOUND;
 
 			foreach (var i in frontier)
 			{
@@ -217,7 +257,7 @@ namespace ProceduralCities
 			g = 0;
 			b = 0;
 
-			if (Level == Computationlevel.NOTHING)
+			if (Level == ComputationLevel.NOTHING)
 				return false;
 
 			double minalt = SampleAltitudes.Min();
@@ -242,7 +282,7 @@ namespace ProceduralCities
 				b = (byte)(64 * lambda);
 			}
 
-			if (Level == Computationlevel.TERRAIN_SAMPLED)
+			if (Level == ComputationLevel.TERRAIN_SAMPLED)
 				return true;
 
 			if (HasCity.GetValueOrDefault())
@@ -406,7 +446,7 @@ namespace ProceduralCities
 			return Enumerable.Range(0, Tiles.Length).Where(x => Coordinates.Distance(Tiles[x].Center, c) < distance).ToList();
 		}
 
-		void Log(string format, params object[] args)
+		public void Log(string format, params object[] args)
 		{
 			Log(string.Format(format, args));
 		}
@@ -437,7 +477,7 @@ namespace ProceduralCities
 				return false;
 
 			var node = data[index];
-			if (node.Level < TileData.Computationlevel.CITIES_PLACED)
+			if (node.Level < TileData.ComputationLevel.CITIES_PLACED)
 				return false;
 
 			return (node.SampleAltitudes.Max() > 0);

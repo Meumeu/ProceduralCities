@@ -68,7 +68,7 @@ namespace ProceduralCities
 				return;
 			LastTile = tile;
 
-			data[LastTile].Load(TileData.Computationlevel.MAX);
+			data[LastTile].Load(TileData.ComputationLevel.MAX);
 			#endif
 		}
 
@@ -123,7 +123,7 @@ namespace ProceduralCities
 					{
 						foreach (var i in data)
 						{
-							if (IsNodeAllowed(i.Key) && data[i.Key].Level >= TileData.Computationlevel.CITY_BORDER_FOUND && city == data[i.Key].ClosestCity && !data[i.Key].HasCity.GetValueOrDefault())
+							if (IsNodeAllowed(i.Key) && data[i.Key].Level >= TileData.ComputationLevel.CITY_BORDER_FOUND && city == data[i.Key].ClosestCity && !data[i.Key].HasCity.GetValueOrDefault())
 								tileColors[i.Key] = XKCDColors.Yellow;
 						}
 
